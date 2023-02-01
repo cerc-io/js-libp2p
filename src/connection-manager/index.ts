@@ -93,6 +93,11 @@ export interface ConnectionManagerConfig {
   resolvers?: Record<string, Resolver>
 
   /**
+   * Boolean to allow multiple connections for a peer after dial
+   */
+  keepMultipleConnections?: boolean
+
+  /**
    * On startup we try to dial any peer that has previously been
    * tagged with KEEP_ALIVE up to this timeout in ms. (default: 60000)
    */

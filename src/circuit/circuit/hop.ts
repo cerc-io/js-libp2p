@@ -129,7 +129,7 @@ export interface HopConfig extends AbortOptions {
  * Performs a HOP request to a relay peer, to request a connection to another
  * peer. A new, virtual, connection will be created between the two via the relay.
  */
-export async function hop (options: HopConfig): Promise<Duplex<Uint8ArrayList, Uint8ArrayList | Uint8Array>> {
+export async function hop (options: HopConfig): Promise<StreamHandler> {
   const {
     connection,
     request,
@@ -153,7 +153,7 @@ export async function hop (options: HopConfig): Promise<Duplex<Uint8ArrayList, U
   if (response.code === CircuitPB.Status.SUCCESS) {
     log('hop request was successful')
 
-    return streamHandler.rest()
+    return streamHandler
   }
 
   log('hop request failed with code %d, closing stream', response.code)

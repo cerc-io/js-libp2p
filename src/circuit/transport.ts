@@ -174,6 +174,11 @@ export class Circuit implements Transport, Startable {
         const type = request.type === CircuitPB.Type.HOP ? 'relay' : 'inbound'
         log('new %s connection %s', type, maConn.remoteAddr)
 
+        // Overwrite connection close method to close underlying stream
+        maConn.close = async () => {
+          streamHandler.closeBaseStream()
+        }
+
         const conn = await this.components.upgrader.upgradeInbound(maConn)
         log('%s connection %s upgraded', type, maConn.remoteAddr)
 
@@ -217,7 +222,7 @@ export class Circuit implements Transport, Startable {
     }
 
     try {
-      const virtualConnection = await hop({
+      const streamHandler = await hop({
         ...options,
         connection: relayConnection,
         request: {
@@ -235,11 +240,16 @@ export class Circuit implements Transport, Startable {
 
       const localAddr = relayAddr.encapsulate(`/p2p-circuit/p2p/${this.components.peerId.toString()}`)
       const maConn = streamToMaConnection({
-        stream: virtualConnection,
+        stream: streamHandler.rest(),
         remoteAddr: ma,
         localAddr
       })
       log('new outbound connection %s', maConn.remoteAddr)
+
+      // Overwrite connection close method to close underlying stream
+      maConn.close = async () => {
+        streamHandler.closeBaseStream()
+      }
 
       return await this.components.upgrader.upgradeOutbound(maConn)
     } catch (err: any) {

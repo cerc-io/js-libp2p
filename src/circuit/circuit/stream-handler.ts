@@ -84,4 +84,11 @@ export class StreamHandler {
       log.error(err)
     })
   }
+
+  /**
+   * Close underlying muxed stream
+   */
+  closeBaseStream  () {
+    this.stream.close()
+  }
 }

@@ -2,9 +2,11 @@
 
 import { expect } from 'aegir/chai'
 import sinon from 'sinon'
-import { multiaddr } from '@multiformats/multiaddr'
 import { pipe } from 'it-pipe'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import delay from 'delay'
+import pWaitFor from 'p-wait-for'
+import { multiaddr } from '@multiformats/multiaddr'
 import { createNode } from '../utils/creators/peer.js'
 import { codes as Errors } from '../../src/errors.js'
 import type { Libp2pNode } from '../../src/libp2p.js'
@@ -13,7 +15,6 @@ import { RELAY_CODEC } from '../../src/circuit/multicodec.js'
 import { StreamHandler } from '../../src/circuit/circuit/stream-handler.js'
 import { CircuitRelay } from '../../src/circuit/pb/index.js'
 import { createNodeOptions, createRelayOptions } from './utils.js'
-import delay from 'delay'
 
 describe('Dialing (via relay, TCP)', () => {
   let srcLibp2p: Libp2pNode
@@ -203,5 +204,32 @@ describe('Dialing (via relay, TCP)', () => {
     // because we timed out, the remote should have reset the stream
     await expect(all(stream.source)).to.eventually.be.rejected
       .with.property('code', 'ERR_STREAM_RESET')
+  })
+
+  it('should disconnect from destination peer on hangup', async () => {
+    const relayMultiAddr = relayLibp2p.getMultiaddrs()[0]
+    await dstLibp2p.dial(relayLibp2p.getMultiaddrs()[0])
+
+    const dialAddr = relayMultiAddr
+      .encapsulate(`/p2p-circuit/p2p/${dstLibp2p.peerId.toString()}`)
+
+    const connection = await srcLibp2p.dial(dialAddr)
+
+    expect(connection).to.exist()
+    expect(connection.remotePeer.toBytes()).to.eql(dstLibp2p.peerId.toBytes())
+    expect(connection.remoteAddr).to.eql(dialAddr)
+
+    await expect(
+      pWaitFor(
+        async () => {
+          await srcLibp2p.hangUp(dstLibp2p.peerId)
+          return true
+        },
+        { timeout: 1000 }
+      )
+    ).to.eventually.be.fulfilled()
+
+    const dstConnections = srcLibp2p.getConnections(dstLibp2p.peerId)
+    expect(dstConnections).to.have.lengthOf(0)
   })
 })

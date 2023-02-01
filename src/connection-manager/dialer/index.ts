@@ -73,6 +73,11 @@ export interface DialerInit {
    * Multiaddr resolvers to use when dialing
    */
   resolvers?: Record<string, Resolver>
+
+  /**
+   * Boolean to allow multiple connections for a peer after dial
+   */
+  keepMultipleConnections?: boolean
 }
 
 export interface DefaultDialerComponents {
@@ -89,6 +94,7 @@ export class DefaultDialer implements Startable, Dialer {
   private readonly maxAddrsToDial: number
   private readonly timeout: number
   private readonly maxDialsPerPeer: number
+  private readonly keepMultipleConnections: boolean
   public tokens: number[]
   public pendingDials: Map<string, PendingDial>
   public pendingDialTargets: Map<string, AbortController>
@@ -100,6 +106,7 @@ export class DefaultDialer implements Startable, Dialer {
     this.maxAddrsToDial = init.maxAddrsToDial ?? MAX_ADDRS_TO_DIAL
     this.timeout = init.dialTimeout ?? DIAL_TIMEOUT
     this.maxDialsPerPeer = init.maxDialsPerPeer ?? MAX_PER_PEER_DIALS
+    this.keepMultipleConnections = init.keepMultipleConnections ?? false
     this.tokens = [...new Array(init.maxParallelDials ?? MAX_PARALLEL_DIALS)].map((_, index) => index)
     this.components = components
     this.pendingDials = trackedMap({
@@ -317,7 +324,8 @@ export class DefaultDialer implements Startable, Dialer {
     const dialRequest = new DialRequest({
       addrs: dialTarget.addrs,
       dialAction,
-      dialer: this
+      dialer: this,
+      keepMultipleConnections: this.keepMultipleConnections
     })
 
     // Combine the timeout signal and options.signal, if provided

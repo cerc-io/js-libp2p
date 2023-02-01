@@ -18,13 +18,15 @@ export interface DialAction {
 export interface DialRequestOptions {
   addrs: Multiaddr[]
   dialAction: DialAction
-  dialer: Dialer
+  dialer: Dialer,
+  keepMultipleConnections?: boolean
 }
 
 export class DialRequest {
   private readonly addrs: Multiaddr[]
   private readonly dialer: Dialer
   private readonly dialAction: DialAction
+  private readonly keepMultipleConnections: boolean
 
   /**
    * Manages running the `dialAction` on multiple provided `addrs` in parallel
@@ -37,12 +39,14 @@ export class DialRequest {
     const {
       addrs,
       dialAction,
-      dialer
+      dialer,
+      keepMultipleConnections = false
     } = options
 
     this.addrs = addrs
     this.dialer = dialer
     this.dialAction = dialAction
+    this.keepMultipleConnections = keepMultipleConnections
   }
 
   async run (options: AbortOptions = {}): Promise<Connection> {
@@ -125,12 +129,17 @@ export class DialRequest {
         return conn
       }))
     } finally {
-      // success/failure happened, abort everything else
-      dialAbortControllers.forEach(c => {
-        if (c !== undefined) {
-          c.abort()
-        }
-      })
+      // Check for multiple connections option before aborting
+      if (!this.keepMultipleConnections) {
+        // success/failure happened, abort everything else
+        dialAbortControllers.forEach((c, i) => {
+          console.log('aborting dial index', i, c)
+          if (c !== undefined) {
+            c.abort()
+          }
+        })
+      }
+
       tokens.forEach(token => this.dialer.releaseToken(token)) // release tokens back to the dialer
     }
   }
