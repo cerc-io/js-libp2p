@@ -18,7 +18,7 @@ export interface DialAction {
 export interface DialRequestOptions {
   addrs: Multiaddr[]
   dialAction: DialAction
-  dialer: Dialer,
+  dialer: Dialer
   keepMultipleConnections?: boolean
 }
 
