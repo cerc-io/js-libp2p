@@ -185,6 +185,30 @@ describe('auto-relay', () => {
       })).to.eventually.be.rejected()
     })
 
+    it('should listen again on relayed address after reconnecting used relay node', async () => {
+      // Discover a relay and connect
+      await relayLibp2p1.peerStore.addressBook.add(relayLibp2p2.peerId, relayLibp2p2.getMultiaddrs())
+      await relayLibp2p1.dial(relayLibp2p2.peerId)
+      await discoveredRelayConfig(relayLibp2p1, relayLibp2p2)
+
+      // Wait for listening on the relay
+      await usingAsRelay(relayLibp2p1, relayLibp2p2)
+
+      // Disconnect from peer used for relay
+      await relayLibp2p1.hangUp(relayLibp2p2.peerId)
+
+      // Wait for removed listening on the relay
+      await expect(usingAsRelay(relayLibp2p1, relayLibp2p2, {
+        timeout: 1000
+      })).to.eventually.be.rejected()
+
+      // Reconnect with relay node
+      await relayLibp2p1.dial(relayLibp2p2.peerId)
+
+      // Wait for listening on the relay again
+      await usingAsRelay(relayLibp2p1, relayLibp2p2)
+    })
+
     it('should try to listen on other connected peers relayed address if one used relay disconnects', async () => {
       // Discover one relay and connect
       await relayLibp2p1.peerStore.addressBook.add(relayLibp2p2.peerId, relayLibp2p2.getMultiaddrs())
