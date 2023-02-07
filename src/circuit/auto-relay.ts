@@ -44,6 +44,7 @@ export class AutoRelay {
     this.onError = init.onError ?? noop
 
     this._onProtocolChange = this._onProtocolChange.bind(this)
+    this._onPeerConnected = this._onPeerConnected.bind(this)
     this._onPeerDisconnected = this._onPeerDisconnected.bind(this)
 
     this.components.peerStore.addEventListener('change:protocols', (evt) => {
@@ -51,7 +52,36 @@ export class AutoRelay {
         log.error(err)
       })
     })
+    this.components.connectionManager.addEventListener('peer:connect', (evt) => {
+      void this._onPeerConnected(evt).catch(err => {
+        log.error(err)
+      })
+    })
     this.components.connectionManager.addEventListener('peer:disconnect', this._onPeerDisconnected)
+  }
+
+  /**
+   * Peer connects
+   */
+  async _onPeerConnected (evt: CustomEvent<Connection>) {
+    const connection = evt.detail
+    const peerId = connection.remotePeer
+    const protocols = await this.components.peerStore.protoBook.get(peerId)
+
+    // Handle protocols on peer connection as change:protocols event is not triggered after reconnection between peers.
+    await this._handleProtocols(peerId, protocols)
+  }
+
+  /**
+   * Protocols updated
+   */
+  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>) {
+    const {
+      peerId,
+      protocols
+    } = evt.detail
+
+    await this._handleProtocols(peerId, protocols)
   }
 
   /**
@@ -60,11 +90,7 @@ export class AutoRelay {
    * If the protocol is supported, check if the peer supports **HOP** and add it as a listener if
    * inside the threshold.
    */
-  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>) {
-    const {
-      peerId,
-      protocols
-    } = evt.detail
+  async _handleProtocols (peerId: PeerId, protocols: string[]) {
     const id = peerId.toString()
 
     // Check if it has the protocol

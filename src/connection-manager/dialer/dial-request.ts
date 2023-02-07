@@ -18,7 +18,7 @@ export interface DialAction {
 export interface DialRequestOptions {
   addrs: Multiaddr[]
   dialAction: DialAction
-  dialer: Dialer,
+  dialer: Dialer
   keepMultipleConnections?: boolean
 }
 
@@ -132,8 +132,7 @@ export class DialRequest {
       // Check for multiple connections option before aborting
       if (!this.keepMultipleConnections) {
         // success/failure happened, abort everything else
-        dialAbortControllers.forEach((c, i) => {
-          console.log('aborting dial index', i, c)
+        dialAbortControllers.forEach(c => {
           if (c !== undefined) {
             c.abort()
           }

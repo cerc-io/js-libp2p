@@ -88,7 +88,7 @@ export class StreamHandler {
   /**
    * Close underlying muxed stream
    */
-  closeBaseStream  () {
+  closeBaseStream () {
     this.stream.close()
   }
 }
