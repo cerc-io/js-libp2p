@@ -139,7 +139,7 @@ export class DialRequest {
         })
       }
 
-      tokens.forEach(token => this.dialer.releaseToken(token)) // release tokens back to the dialer
+      tokens.forEach(token => { this.dialer.releaseToken(token) }) // release tokens back to the dialer
     }
   }
 }
