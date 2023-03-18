@@ -10,8 +10,8 @@ import type { ConnectionManager } from '@libp2p/interface-connection-manager'
 import type { AddressManager } from '@libp2p/interface-address-manager'
 import type { CreateListenerOptions, Listener, Transport, Upgrader } from '@libp2p/interface-transport'
 
-import { createListener } from './listener'
-import { WEBRTC_SIGNAL_CODEC } from './multicodec'
+import { createListener } from './listener.js'
+import { WEBRTC_SIGNAL_CODEC } from './multicodec.js'
 
 const log = logger('libp2p:webrtc-signal')
 
@@ -87,6 +87,6 @@ export class WebRTCSignal implements Transport, Startable {
 
   filter (multiaddrs: Multiaddr[]): Multiaddr[] {
     // TODO: Design a custom filter for signalling addresses
-    return multiaddrs
+    return multiaddrs.filter((ma) => ma.protoNames().includes('p2p-webrtc-star'))
   }
 }

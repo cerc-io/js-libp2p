@@ -50,6 +50,8 @@ import { PeerSet } from '@libp2p/peer-collections'
 import { DefaultDialer } from './connection-manager/dialer/index.js'
 import { peerIdFromString } from '@libp2p/peer-id'
 import type { Datastore } from 'interface-datastore'
+import { WebRTCSignal } from './webrtc-signal/transport.js'
+import { AutoSignal } from './webrtc-signal/index.js'
 
 const log = logger('libp2p')
 
@@ -231,6 +233,14 @@ export class Libp2pNode extends EventEmitter<Libp2pEvents> implements Libp2p {
         addressSorter: init.connectionManager.addressSorter,
         ...init.relay
       }))
+    }
+
+    if (init.webRTCSignal.enabled) {
+      this.components.transportManager.add(this.configureComponent(new WebRTCSignal(this.components)))
+
+      if (!init.webRTCSignal.isSignallingNode && init.webRTCSignal.autoSignal?.enabled) {
+        this.configureComponent(new AutoSignal(this.components, init.webRTCSignal.autoSignal))
+      }
     }
 
     this.fetchService = this.configureComponent(new FetchService(this.components, {
