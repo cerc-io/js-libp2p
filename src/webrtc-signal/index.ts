@@ -6,8 +6,9 @@ import type { ConnectionManager } from '@libp2p/interface-connection-manager'
 import type { TransportManager, Listener } from '@libp2p/interface-transport'
 
 import { WEBRTC_SIGNAL_CODEC } from './multicodec.js'
+import { P2P_WEBRTC_STAR_ID } from './constants.js'
 
-const log = logger('libp2p:auto-signal')
+const log = logger('libp2p:webrtc-signal:auto-signal')
 
 export interface WebRTCSignalConfig {
   enabled: boolean
@@ -76,10 +77,14 @@ export class AutoSignal {
 
   _onListenerClosed (evt: CustomEvent<Listener>) {
     const listener = evt.detail
-    const [listenAddr] = listener.getAddrs()
+    const listenAddrs = listener.getAddrs()
+
+    if (listenAddrs.length === 0) {
+      return
+    }
 
     // Check if it's the concerned listener
-    if (!listenAddr.protoNames().includes('p2p-webrtc-star')) {
+    if (!listenAddrs[0].protoNames().includes(P2P_WEBRTC_STAR_ID)) {
       return
     }
 
@@ -87,16 +92,16 @@ export class AutoSignal {
   }
 
   async _handleProtocols (peerId: PeerId, protocols: string[]) {
-    // Check if it's primary relay node
-    if (peerId.toString() !== this.relayPeerId) {
+    // Ignore if we are already listening or it's not the primary relay node
+    if (this.isListening || peerId.toString() !== this.relayPeerId) {
       return
     }
 
     // Check if it has the protocol
     const hasProtocol = protocols.find(protocol => protocol === WEBRTC_SIGNAL_CODEC)
 
-    // Ignore if protocol is not supported or we are already listening
-    if (hasProtocol == null || this.isListening) {
+    // Ignore if protocol is not supported
+    if (hasProtocol == null) {
       return
     }
 

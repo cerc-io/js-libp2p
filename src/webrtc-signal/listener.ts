@@ -1,17 +1,147 @@
-import type { ConnectionManager } from '@libp2p/interface-connection-manager'
-import type { Listener } from '@libp2p/interface-transport'
+import map from 'it-map'
+import { pipe } from 'it-pipe'
+import type { Pushable } from 'it-pushable'
+import * as lp from 'it-length-prefixed'
+import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+
+import { logger } from '@libp2p/logger'
 import { multiaddr, Multiaddr } from '@multiformats/multiaddr'
-import { CustomEvent, EventEmitter } from '@libp2p/interfaces/events'
 import { peerIdFromString } from '@libp2p/peer-id'
+import { CustomEvent, EventEmitter } from '@libp2p/interfaces/events'
+import { Signal, WebRTCReceiver } from '@libp2p/webrtc-peer'
+import type { Connection, Stream } from '@libp2p/interface-connection'
+import type { ConnectionManager } from '@libp2p/interface-connection-manager'
+import type { ConnectionHandler, Listener, Upgrader } from '@libp2p/interface-transport'
 
 import { WEBRTC_SIGNAL_CODEC } from './multicodec.js'
+import { SignallingMessage, Type } from './signal-message.js'
+import { toMultiaddrConnection } from './socket-to-conn.js'
+
+const log = logger('libp2p:webrtc-signal')
 
 export interface ListenerOptions {
+  handler?: ConnectionHandler
+  upgrader: Upgrader
   connectionManager: ConnectionManager
 }
 
-export function createListener (options: ListenerOptions): Listener {
+export function createListener (options: ListenerOptions, peerInputStream: Pushable<any>, dialResponseStream: Pushable<any>): Listener {
   let listeningAddr: Multiaddr
+
+  async function pipePeerInputStream (signallingStream: Stream): Promise<void> {
+    // TODO Test
+    // Empty out peerInputStream first
+    while (peerInputStream.readableLength !== 0) {
+      await peerInputStream.next()
+    }
+
+    // Send dial requests / responses to the relay node over the signalling stream
+    void pipe(
+      // Read from stream (the source)
+      peerInputStream,
+      // Turn objects into buffers
+      (source) => map(source, (value) => {
+        return uint8ArrayFromString(JSON.stringify(value))
+      }),
+      // Encode with length prefix (so receiving side knows how much data is coming)
+      lp.encode(),
+      // Write to the stream (the sink)
+      signallingStream.sink
+    )
+  }
+
+  async function handleSignallingMessages (signallingStream: Stream): Promise<void> {
+    // Handle incoming messages from the signalling stream
+    void pipe(
+      // Read from the stream (the source)
+      signallingStream.source,
+      // Decode length-prefixed data
+      lp.decode(),
+      // Turn buffers into objects
+      (source) => map(source, (buf) => {
+        return JSON.parse(uint8ArrayToString(buf.subarray()))
+      }),
+      // Sink function
+      async (source) => {
+        // For each chunk of data
+        for await (const msg of source) {
+          switch ((msg as SignallingMessage).type) {
+            case Type.REQUEST:
+              processRequest(msg)
+              break
+            case Type.RESPONSE:
+              dialResponseStream.push(msg)
+              break
+            default:
+              log('unknown message', msg)
+              break
+          }
+        }
+      }
+    )
+  }
+
+  function processRequest (request: SignallingMessage) {
+    const incSignal: Signal = JSON.parse(request.signal)
+
+    if (incSignal.type !== 'offer') {
+      // offers contain candidates so only respond to the offer
+      return
+    }
+
+    const channel = new WebRTCReceiver()
+
+    channel.addEventListener('signal', (evt) => {
+      const signal = evt.detail
+      const signalStr = JSON.stringify(signal)
+
+      // Send response signal
+      const response: SignallingMessage = {
+        type: Type.RESPONSE,
+        src: request.dst,
+        dst: request.src,
+        signal: signalStr
+      }
+
+      peerInputStream.push(response)
+    })
+
+    channel.addEventListener('error', (evt) => {
+      const err = evt.detail
+
+      log.error('incoming connection errored with', err)
+      void channel.close().catch(err => {
+        log.error(err)
+      })
+    })
+    channel.addEventListener('ready', () => {
+      // TODO Test
+      void (async () => {
+        const maConn = toMultiaddrConnection(channel, {
+          // Form the multiaddr for this peer by appending it's peer id to the listening multiaddr
+          remoteAddr: multiaddr(`${listeningAddr.toString()}/p2p/${request.dst}`)
+        })
+        log('new inbound connection %s', maConn.remoteAddr)
+
+        const connection = await options.upgrader.upgradeInbound(maConn)
+        log('inbound connection %s upgraded', maConn.remoteAddr)
+
+        // TODO: Required?
+        // channel.addEventListener('close', untrackConn, {
+        //   once: true
+        // })
+
+        if (options.handler != null) {
+          options.handler(connection)
+        }
+
+        listener.dispatchEvent(new CustomEvent<Connection>('connection', { detail: connection }))
+      })()
+    })
+
+    channel.handleSignal(incSignal)
+  }
 
   async function listen (addr: Multiaddr): Promise<void> {
     const relayMultiaddrString = addr.toString().split('/p2p-circuit').find(a => a !== '')
@@ -31,10 +161,14 @@ export function createListener (options: ListenerOptions): Listener {
 
     const connection = connections[0]
 
-    // Open the signalling stream to the relay node
-    await connection.newStream(WEBRTC_SIGNAL_CODEC)
+    // Open a signalling stream to the relay node
+    const signallingStream = await connection.newStream(WEBRTC_SIGNAL_CODEC)
 
-    // TODO: Handle connect requests
+    // Pipe messages from peerInputStream to signallingStream
+    await pipePeerInputStream(signallingStream)
+
+    // Handle messages from the signalling stream
+    await handleSignallingMessages(signallingStream)
 
     // Stop the listener when the primary relay node disconnects
     options.connectionManager.addEventListener('peer:disconnect', (evt) => {
@@ -47,7 +181,7 @@ export function createListener (options: ListenerOptions): Listener {
           await listener.close()
         })()
       }
-    })
+    }, { once: true })
 
     listeningAddr = addr
     listener.dispatchEvent(new CustomEvent('listening'))
