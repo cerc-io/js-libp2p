@@ -17,10 +17,12 @@ import type { Startable } from '@libp2p/interfaces/startable'
 import type { AbortOptions } from '@libp2p/interfaces'
 import type { Connection, Stream } from '@libp2p/interface-connection'
 import type { ConnectionManager } from '@libp2p/interface-connection-manager'
+import type { PubSub, Message } from '@libp2p/interface-pubsub'
 import type { CreateListenerOptions, Listener, Transport, Upgrader } from '@libp2p/interface-transport'
 
-import { P2P_WEBRTC_STAR_ID } from './constants.js'
+import { P2P_WEBRTC_STAR_ID, WEBRTC_SIGNAL_TOPIC } from './constants.js'
 import { WEBRTC_SIGNAL_CODEC } from './multicodec.js'
+import type { WebRTCSignalConfig } from './index.js'
 import { createListener } from './listener.js'
 import { SignallingMessage, Type } from './signal-message.js'
 import { toMultiaddrConnection } from './socket-to-conn.js'
@@ -34,6 +36,7 @@ export interface WebRTCSignalComponents {
   registrar: Registrar
   connectionManager: ConnectionManager
   upgrader: Upgrader
+  pubsub?: PubSub
 }
 
 export class WebRTCSignal implements Transport, Startable {
@@ -41,17 +44,19 @@ export class WebRTCSignal implements Transport, Startable {
   // Transport implmentation is concerned with peer nodes
 
   private readonly components: WebRTCSignalComponents
+  private readonly init: WebRTCSignalConfig
 
-  private _started: boolean
+  private started: boolean
   private readonly peerSignallingInputStreams: Map<string, Pushable<any>> = new Map()
 
   private readonly peerInputStream: Pushable<any>
   private readonly dialResponseStream: Pushable<any>
   private readonly dialResponseListener: DialResponseListener
 
-  constructor (components: WebRTCSignalComponents) {
+  constructor (components: WebRTCSignalComponents, init: WebRTCSignalConfig) {
     this.components = components
-    this._started = false
+    this.init = init
+    this.started = false
 
     this.peerInputStream = pushable<any>({ objectMode: true })
     this.dialResponseStream = pushable<any>({ objectMode: true })
@@ -60,15 +65,15 @@ export class WebRTCSignal implements Transport, Startable {
   }
 
   isStarted () {
-    return this._started
+    return this.started
   }
 
   async start (): Promise<void> {
-    if (this._started) {
+    if (this.started) {
       return
     }
 
-    this._started = true
+    this.started = true
 
     // Handle incoming protocol stream
     await this.components.registrar.handle(WEBRTC_SIGNAL_CODEC, (data) => {
@@ -78,6 +83,11 @@ export class WebRTCSignal implements Transport, Startable {
     }).catch(err => {
       log.error(err)
     })
+
+    // Handle signalling topic if it's a signalling node
+    if (this.init.isSignallingNode) {
+      await this._handleWebRTCSignalTopic()
+    }
   }
 
   async stop () {
@@ -96,6 +106,34 @@ export class WebRTCSignal implements Transport, Startable {
     const { connection, stream } = data
 
     await this._handlePeerSignallingStream(connection.remotePeer.toString(), stream)
+  }
+
+  async _handleWebRTCSignalTopic (): Promise<void> {
+    const pubsub = this.components.pubsub
+    if (pubsub === undefined) {
+      return
+    }
+
+    log('Subscribing peer to the signalling topic')
+
+    pubsub.subscribe(WEBRTC_SIGNAL_TOPIC)
+    pubsub.addEventListener('message', (evt) => {
+      this._handlePubSubMessage(evt.detail)
+    })
+  }
+
+  _handlePubSubMessage (msg: Message): void {
+    if (msg.topic !== WEBRTC_SIGNAL_TOPIC) {
+      return
+    }
+
+    // Forward the signalling message to the destination if connected to it
+    // Ignore otherwise
+    const signallingMsg: SignallingMessage = JSON.parse(uint8ArrayToString(msg.data))
+    const destStream = this.peerSignallingInputStreams.get(signallingMsg.dst)
+    if (destStream !== undefined) {
+      destStream.push(signallingMsg)
+    }
   }
 
   async dial (ma: Multiaddr, options: AbortOptions = {}): Promise<Connection> {
@@ -187,6 +225,12 @@ export class WebRTCSignal implements Transport, Startable {
             destStream.push(msg)
           } else {
             log('outgoing stream not found for dest', msg.dst)
+
+            const pubsub = this.components.pubsub
+            if (pubsub !== undefined) {
+              log('forwarding msg over signalling topic')
+              await pubsub.publish(WEBRTC_SIGNAL_TOPIC, uint8ArrayFromString(JSON.stringify(msg)))
+            }
           }
         }
       }

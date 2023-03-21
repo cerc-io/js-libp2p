@@ -236,7 +236,7 @@ export class Libp2pNode extends EventEmitter<Libp2pEvents> implements Libp2p {
     }
 
     if (init.webRTCSignal.enabled) {
-      this.components.transportManager.add(this.configureComponent(new WebRTCSignal(this.components)))
+      this.components.transportManager.add(this.configureComponent(new WebRTCSignal(this.components, init.webRTCSignal)))
 
       if (!init.webRTCSignal.isSignallingNode && init.webRTCSignal.autoSignal?.enabled) {
         this.configureComponent(new AutoSignal(this.components, init.webRTCSignal.autoSignal))
