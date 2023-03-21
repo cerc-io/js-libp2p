@@ -203,7 +203,7 @@ export class WebRTCSignal implements Transport, Startable {
     )
 
     // Track input stream for this peer
-    // TODO Untrack on disconnect
+    // TODO Untrack on disconnect, use components.connectionManager
     this.peerSignallingInputStreams.set(peerId, inputStream)
 
     void pipe(
@@ -244,7 +244,7 @@ export class WebRTCSignal implements Transport, Startable {
       throw new AbortError()
     }
 
-    // TODO Required?
+    // TODO Done in webrtc-direct, required here?
     // const channelOptions = {
     //   initiator: true,
     //   trickle: false,

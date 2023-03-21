@@ -30,7 +30,7 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
   let listeningAddr: Multiaddr | undefined
 
   async function pipePeerInputStream (signallingStream: Stream): Promise<void> {
-    // TODO Test
+    // TODO Test if effective / required
     // Empty out peerInputStream first
     while (peerInputStream.readableLength !== 0) {
       await peerInputStream.next()
@@ -117,7 +117,6 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
     })
 
     channel.addEventListener('ready', () => {
-      // TODO Test
       void (async () => {
         if (listeningAddr === undefined) {
           const msg = 'listening address not set'
@@ -133,7 +132,7 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
         const connection = await options.upgrader.upgradeInbound(maConn)
         log('inbound connection %s upgraded', maConn.remoteAddr)
 
-        // TODO: Required?
+        // TODO: Done in webrtc-direct, required here?
         // channel.addEventListener('close', untrackConn, {
         //   once: true
         // })
