@@ -25,6 +25,7 @@ import { createListener } from './listener.js'
 import { SignallingMessage, Type } from './signal-message.js'
 import { toMultiaddrConnection } from './socket-to-conn.js'
 import { DialResponseListener } from './utils.js'
+import { CIRCUIT_PROTO_CODE } from '../circuit/constants.js'
 
 const log = logger('libp2p:webrtc-signal')
 
@@ -137,7 +138,13 @@ export class WebRTCSignal implements Transport, Startable {
 
   filter (multiaddrs: Multiaddr[]): Multiaddr[] {
     // A custom filter for signalling addresses
-    return multiaddrs.filter((ma) => ma.protoNames().includes(P2P_WEBRTC_STAR_ID))
+    return multiaddrs.filter((ma) => {
+      if (ma.protoCodes().includes(CIRCUIT_PROTO_CODE)) {
+        return false
+      }
+
+      return ma.protoNames().includes(P2P_WEBRTC_STAR_ID)
+    })
   }
 
   async _handlePeerSignallingStream (peerId: string, signallingStream: Stream): Promise<void> {
