@@ -3,7 +3,7 @@ import type { PeerId } from '@libp2p/interface-peer-id'
 import type { PeerStore, PeerProtocolsChangeData } from '@libp2p/interface-peer-store'
 import type { Connection } from '@libp2p/interface-connection'
 import type { ConnectionManager } from '@libp2p/interface-connection-manager'
-import type { TransportManager, Listener } from '@libp2p/interface-transport'
+import type { TransportManager } from '@libp2p/interface-transport'
 
 import { WEBRTC_SIGNAL_CODEC } from './multicodec.js'
 import { P2P_WEBRTC_STAR_ID } from './constants.js'
@@ -40,7 +40,7 @@ export class AutoSignal {
 
     this._onProtocolChange = this._onProtocolChange.bind(this)
     this._onPeerConnected = this._onPeerConnected.bind(this)
-    this._onListenerClosed = this._onListenerClosed.bind(this)
+    this._onPeerDisconnected = this._onPeerDisconnected.bind(this)
 
     this.components.peerStore.addEventListener('change:protocols', (evt) => {
       void this._onProtocolChange(evt).catch(err => {
@@ -54,16 +54,7 @@ export class AutoSignal {
       })
     })
 
-    this.components.transportManager.addEventListener('listener:close', (evt) => this._onListenerClosed(evt))
-  }
-
-  async _onPeerConnected (evt: CustomEvent<Connection>) {
-    const connection = evt.detail
-    const peerId = connection.remotePeer
-    const protocols = await this.components.peerStore.protoBook.get(peerId)
-
-    // Handle protocols on peer connection as change:protocols event is not triggered after reconnection between peers.
-    await this._handleProtocols(peerId, protocols)
+    this.components.connectionManager.addEventListener('peer:disconnect', (evt) => this._onPeerDisconnected(evt))
   }
 
   async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>) {
@@ -75,20 +66,21 @@ export class AutoSignal {
     await this._handleProtocols(peerId, protocols)
   }
 
-  _onListenerClosed (evt: CustomEvent<Listener>) {
-    const listener = evt.detail
-    const listenAddrs = listener.getAddrs()
+  async _onPeerConnected (evt: CustomEvent<Connection>) {
+    const connection = evt.detail
+    const peerId = connection.remotePeer
+    const protocols = await this.components.peerStore.protoBook.get(peerId)
 
-    if (listenAddrs.length === 0) {
-      return
+    // Handle protocols on peer connection as change:protocols event is not triggered after reconnection between peers.
+    await this._handleProtocols(peerId, protocols)
+  }
+
+  _onPeerDisconnected (evt: CustomEvent<Connection>) {
+    const connection = evt.detail
+
+    if (connection.remotePeer.toString() === this.relayPeerId.toString()) {
+      this.isListening = false
     }
-
-    // Check if it's the concerned listener
-    if (!listenAddrs[0].protoNames().includes(P2P_WEBRTC_STAR_ID)) {
-      return
-    }
-
-    this.isListening = false
   }
 
   async _handleProtocols (peerId: PeerId, protocols: string[]) {
@@ -127,7 +119,7 @@ export class AutoSignal {
       const remoteAddr = connection.remoteAddr
 
       // Attempt to listen on relay
-      const multiaddr = remoteAddr.encapsulate('/p2p-webrtc-star')
+      const multiaddr = remoteAddr.encapsulate(`/${P2P_WEBRTC_STAR_ID}`)
 
       // Announce multiaddr will update on listen success by TransportManager event being triggered
       await this.components.transportManager.listen([multiaddr])

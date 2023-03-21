@@ -69,7 +69,7 @@ export class WebRTCSignal implements Transport, Startable {
 
     this._started = true
 
-    // gets called on an incoming protocol stream
+    // Handle incoming protocol stream
     await this.components.registrar.handle(WEBRTC_SIGNAL_CODEC, (data) => {
       void this._onProtocol(data).catch(err => {
         log.error(err)

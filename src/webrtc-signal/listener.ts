@@ -27,7 +27,7 @@ export interface ListenerOptions {
 }
 
 export function createListener (options: ListenerOptions, peerInputStream: Pushable<any>, dialResponseStream: Pushable<any>): Listener {
-  let listeningAddr: Multiaddr
+  let listeningAddr: Multiaddr | undefined
 
   async function pipePeerInputStream (signallingStream: Stream): Promise<void> {
     // TODO Test
@@ -115,9 +115,15 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
         log.error(err)
       })
     })
+
     channel.addEventListener('ready', () => {
       // TODO Test
       void (async () => {
+        if (listeningAddr === undefined) {
+          const msg = 'listening address not set'
+          throw new Error(msg)
+        }
+
         const maConn = toMultiaddrConnection(channel, {
           // Form the multiaddr for this peer by appending it's peer id to the listening multiaddr
           remoteAddr: multiaddr(`${listeningAddr.toString()}/p2p/${request.dst}`)
@@ -196,6 +202,7 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
   }
 
   async function close () {
+    listeningAddr = undefined
     listener.dispatchEvent(new CustomEvent('close'))
   }
 
