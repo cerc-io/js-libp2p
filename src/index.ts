@@ -42,6 +42,7 @@ import type { NatManagerInit } from './nat-manager.js'
 import type { AddressManagerInit } from './address-manager/index.js'
 import type { PeerRoutingInit } from './peer-routing.js'
 import type { ConnectionManagerInit } from './connection-manager/index.js'
+import type { WebRTCSignalConfig } from './webrtc-signal/index.js'
 
 /**
  * For Libp2p configurations and modules details read the [Configuration Document](./CONFIGURATION.md).
@@ -104,6 +105,8 @@ export interface Libp2pInit {
    * types of traffic for other peers
    */
   relay: RelayConfig
+
+  webRTCSignal: WebRTCSignalConfig
 
   /**
    * libp2p identify protocol options

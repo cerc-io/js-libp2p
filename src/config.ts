@@ -66,6 +66,14 @@ const DefaultConfig: Partial<Libp2pInit> = {
       maxListeners: 2
     }
   },
+  webRTCSignal: {
+    enabled: false,
+    isSignallingNode: false,
+    autoSignal: {
+      enabled: false,
+      relayPeerId: ''
+    }
+  },
   identify: {
     protocolPrefix: 'ipfs',
     host: {
