@@ -292,7 +292,7 @@ export class Libp2pNode extends EventEmitter<Libp2pEvents> implements Libp2p {
 
       // start any startables
       await Promise.all(
-        this.services.map(service => service.start())
+        this.services.map(async service => await service.start())
       )
 
       await Promise.all(
@@ -332,7 +332,7 @@ export class Libp2pNode extends EventEmitter<Libp2pEvents> implements Libp2p {
     )
 
     await Promise.all(
-      this.services.map(service => service.stop())
+      this.services.map(async service => await service.stop())
     )
 
     await Promise.all(
