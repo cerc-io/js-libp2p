@@ -31,8 +31,6 @@ export class AutoSignal {
   private readonly components: SignalComponents
   private readonly relayPeerId: string
   private isListening: boolean = false
-  // TODO Done in circuit-relay implementation, required here?
-  // private readonly onError: (error: Error, msg?: string) => void
 
   constructor (components: SignalComponents, init: AutoSignalConfig) {
     this.components = components
@@ -104,10 +102,6 @@ export class AutoSignal {
     }
 
     const connection = connections[0]
-
-    // TODO Done in circuit-relay implementation, required here?
-    // await this.components.peerStore.metadataBook.setValue(peerId, HOP_METADATA_KEY, uint8ArrayFromString(HOP_METADATA_VALUE))
-
     await this._addListener(connection)
   }
 

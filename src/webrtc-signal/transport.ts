@@ -84,7 +84,6 @@ export class WebRTCSignal implements Transport, Startable {
       log.error(err)
     })
 
-
     if (this.init.isSignallingNode) {
       // Handle signalling topic if it's a signalling node
       await this._handleWebRTCSignalTopic()
@@ -115,7 +114,7 @@ export class WebRTCSignal implements Transport, Startable {
   _handleClosedSignallingStreams (): void {
     this.components.connectionManager.addEventListener('peer:disconnect', (evt) => {
       const connection = evt.detail
-      const present = this.peerSignallingInputStreams.delete(connection.remotePeer.toString())
+      this.peerSignallingInputStreams.delete(connection.remotePeer.toString())
     })
   }
 
@@ -253,13 +252,6 @@ export class WebRTCSignal implements Transport, Startable {
     if (options.signal?.aborted === true) {
       throw new AbortError()
     }
-
-    // TODO Done in webrtc-direct, required here?
-    // const channelOptions = {
-    //   initiator: true,
-    //   trickle: false,
-    //   ...this.initiatorOptions
-    // }
 
     return await new Promise<WebRTCInitiator>((resolve, reject) => {
       let connected: boolean
