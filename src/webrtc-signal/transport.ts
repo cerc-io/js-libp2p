@@ -84,9 +84,12 @@ export class WebRTCSignal implements Transport, Startable {
       log.error(err)
     })
 
-    // Handle signalling topic if it's a signalling node
     if (this.init.isSignallingNode) {
+      // Handle signalling topic if it's a signalling node
       await this._handleWebRTCSignalTopic()
+
+      // Untrack a peer connection on a disconnect
+      this._handleClosedSignallingStreams()
     }
   }
 
@@ -106,6 +109,13 @@ export class WebRTCSignal implements Transport, Startable {
     const { connection, stream } = data
 
     await this._handlePeerSignallingStream(connection.remotePeer.toString(), stream)
+  }
+
+  _handleClosedSignallingStreams (): void {
+    this.components.connectionManager.addEventListener('peer:disconnect', (evt) => {
+      const connection = evt.detail
+      this.peerSignallingInputStreams.delete(connection.remotePeer.toString())
+    })
   }
 
   async _handleWebRTCSignalTopic (): Promise<void> {
@@ -203,7 +213,6 @@ export class WebRTCSignal implements Transport, Startable {
     )
 
     // Track input stream for this peer
-    // TODO Untrack on disconnect, use components.connectionManager
     this.peerSignallingInputStreams.set(peerId, inputStream)
 
     void pipe(
@@ -243,13 +252,6 @@ export class WebRTCSignal implements Transport, Startable {
     if (options.signal?.aborted === true) {
       throw new AbortError()
     }
-
-    // TODO Done in webrtc-direct, required here?
-    // const channelOptions = {
-    //   initiator: true,
-    //   trickle: false,
-    //   ...this.initiatorOptions
-    // }
 
     return await new Promise<WebRTCInitiator>((resolve, reject) => {
       let connected: boolean

@@ -30,7 +30,6 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
   let listeningAddr: Multiaddr | undefined
 
   async function pipePeerInputStream (signallingStream: Stream): Promise<void> {
-    // TODO Test if effective / required
     // Empty out peerInputStream first
     while (peerInputStream.readableLength !== 0) {
       await peerInputStream.next()
@@ -52,6 +51,11 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
   }
 
   async function handleSignallingMessages (signallingStream: Stream): Promise<void> {
+    // Empty out dialResponseStream first
+    while (dialResponseStream.readableLength !== 0) {
+      await dialResponseStream.next()
+    }
+
     // Handle incoming messages from the signalling stream
     void pipe(
       // Read from the stream (the source)
@@ -131,11 +135,6 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
 
         const connection = await options.upgrader.upgradeInbound(maConn)
         log('inbound connection %s upgraded', maConn.remoteAddr)
-
-        // TODO: Done in webrtc-direct, required here?
-        // channel.addEventListener('close', untrackConn, {
-        //   once: true
-        // })
 
         if (options.handler != null) {
           options.handler(connection)
