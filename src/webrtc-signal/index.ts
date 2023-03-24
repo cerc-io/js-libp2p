@@ -54,10 +54,10 @@ export class AutoSignal {
       })
     })
 
-    this.components.connectionManager.addEventListener('peer:disconnect', (evt) => this._onPeerDisconnected(evt))
+    this.components.connectionManager.addEventListener('peer:disconnect', (evt) => { this._onPeerDisconnected(evt) })
   }
 
-  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>) {
+  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>): Promise<void> {
     const {
       peerId,
       protocols
@@ -66,7 +66,7 @@ export class AutoSignal {
     await this._handleProtocols(peerId, protocols)
   }
 
-  async _onPeerConnected (evt: CustomEvent<Connection>) {
+  async _onPeerConnected (evt: CustomEvent<Connection>): Promise<void> {
     const connection = evt.detail
     const peerId = connection.remotePeer
     const protocols = await this.components.peerStore.protoBook.get(peerId)
@@ -75,7 +75,7 @@ export class AutoSignal {
     await this._handleProtocols(peerId, protocols)
   }
 
-  _onPeerDisconnected (evt: CustomEvent<Connection>) {
+  _onPeerDisconnected (evt: CustomEvent<Connection>): void {
     const connection = evt.detail
 
     if (connection.remotePeer.toString() === this.relayPeerId.toString()) {
@@ -83,7 +83,7 @@ export class AutoSignal {
     }
   }
 
-  async _handleProtocols (peerId: PeerId, protocols: string[]) {
+  async _handleProtocols (peerId: PeerId, protocols: string[]): Promise<void> {
     // Ignore if we are already listening or it's not the primary relay node
     if (this.isListening || peerId.toString() !== this.relayPeerId) {
       return

@@ -74,7 +74,7 @@ async function createGoPeer (options: SpawnOptions): Promise<Daemon> {
   return {
     client: createClient(apiAddr),
     stop: async () => {
-      await proc.kill()
+      proc.kill()
     }
   }
 }
@@ -136,7 +136,7 @@ async function createJsPeer (options: SpawnOptions): Promise<Daemon> {
 
   const node = await createLibp2p(opts)
 
-  const server = await createServer(multiaddr('/ip4/0.0.0.0/tcp/0'), node)
+  const server = createServer(multiaddr('/ip4/0.0.0.0/tcp/0'), node)
   await server.start()
 
   return {
@@ -148,7 +148,7 @@ async function createJsPeer (options: SpawnOptions): Promise<Daemon> {
   }
 }
 
-async function main () {
+async function main (): Promise<void> {
   const factory: DaemonFactory = {
     async spawn (options: SpawnOptions) {
       if (options.type === 'go') {

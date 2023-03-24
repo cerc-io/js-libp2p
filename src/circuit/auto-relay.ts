@@ -21,7 +21,7 @@ import type { RelayComponents } from './index.js'
 
 const log = logger('libp2p:auto-relay')
 
-const noop = () => {}
+const noop = (): void => {}
 
 export interface AutoRelayInit {
   addressSorter?: AddressSorter
@@ -63,7 +63,7 @@ export class AutoRelay {
   /**
    * Peer connects
    */
-  async _onPeerConnected (evt: CustomEvent<Connection>) {
+  async _onPeerConnected (evt: CustomEvent<Connection>): Promise<void> {
     const connection = evt.detail
     const peerId = connection.remotePeer
     const protocols = await this.components.peerStore.protoBook.get(peerId)
@@ -75,7 +75,7 @@ export class AutoRelay {
   /**
    * Protocols updated
    */
-  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>) {
+  async _onProtocolChange (evt: CustomEvent<PeerProtocolsChangeData>): Promise<void> {
     const {
       peerId,
       protocols
@@ -90,7 +90,7 @@ export class AutoRelay {
    * If the protocol is supported, check if the peer supports **HOP** and add it as a listener if
    * inside the threshold.
    */
-  async _handleProtocols (peerId: PeerId, protocols: string[]) {
+  async _handleProtocols (peerId: PeerId, protocols: string[]): Promise<void> {
     const id = peerId.toString()
 
     // Check if it has the protocol
@@ -139,7 +139,7 @@ export class AutoRelay {
   /**
    * Peer disconnects
    */
-  _onPeerDisconnected (evt: CustomEvent<Connection>) {
+  _onPeerDisconnected (evt: CustomEvent<Connection>): void {
     const connection = evt.detail
     const peerId = connection.remotePeer
     const id = peerId.toString()
@@ -207,7 +207,7 @@ export class AutoRelay {
   /**
    * Remove listen relay
    */
-  async _removeListenRelay (id: string) {
+  async _removeListenRelay (id: string): Promise<void> {
     if (this.listenRelays.delete(id)) {
       // TODO: this should be responsibility of the connMgr
       await this._listenOnAvailableHopRelays([id])
@@ -221,7 +221,7 @@ export class AutoRelay {
    * 2. Dial and try to listen on the peers we know that support hop but are not connected.
    * 3. Search the network.
    */
-  async _listenOnAvailableHopRelays (peersToIgnore: string[] = []) {
+  async _listenOnAvailableHopRelays (peersToIgnore: string[] = []): Promise<void> {
     // TODO: The peer redial issue on disconnect should be handled by connection gating
     // Check if already listening on enough relays
     if (this.listenRelays.size >= this.maxListeners) {
@@ -306,7 +306,7 @@ export class AutoRelay {
     }
   }
 
-  async _tryToListenOnRelay (peerId: PeerId) {
+  async _tryToListenOnRelay (peerId: PeerId): Promise<void> {
     try {
       const connection = await this.components.connectionManager.openConnection(peerId)
       await this._addListenRelay(connection, peerId.toString())

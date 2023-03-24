@@ -48,7 +48,7 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
   /**
    * Adds a `Transport` to the manager
    */
-  add (transport: Transport) {
+  add (transport: Transport): void {
     const tag = transport[Symbol.toStringTag]
 
     if (tag == null) {
@@ -68,11 +68,11 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
     }
   }
 
-  isStarted () {
+  isStarted (): boolean {
     return this.started
   }
 
-  async start () {
+  async start (): Promise<void> {
     // Listen on the provided transports for the provided addresses
     const addrs = this.components.addressManager.getListenAddrs()
 
@@ -84,7 +84,7 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
   /**
    * Stops all listeners
    */
-  async stop () {
+  async stop (): Promise<void> {
     const tasks = []
     for (const [key, listeners] of this.listeners) {
       log('closing listeners for %s', key)
@@ -148,14 +148,14 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
   /**
    * Returns all the transports instances
    */
-  getTransports () {
+  getTransports (): Transport[] {
     return Array.of(...this.transports.values())
   }
 
   /**
    * Finds a transport that matches the given Multiaddr
    */
-  transportForMultiaddr (ma: Multiaddr) {
+  transportForMultiaddr (ma: Multiaddr): Transport | undefined {
     for (const transport of this.transports.values()) {
       const addrs = transport.filter([ma])
 
@@ -168,7 +168,7 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
   /**
    * Starts listeners for each listen Multiaddr
    */
-  async listen (addrs: Multiaddr[]) {
+  async listen (addrs: Multiaddr[]): Promise<void> {
     if (addrs == null || addrs.length === 0) {
       log('no addresses were provided for listening, this node is dial only')
       return
@@ -244,7 +244,7 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
    * Removes the given transport from the manager.
    * If a transport has any running listeners, they will be closed.
    */
-  async remove (key: string) {
+  async remove (key: string): Promise<void> {
     log('removing %s', key)
 
     // Close any running listeners
@@ -262,7 +262,7 @@ export class DefaultTransportManager extends EventEmitter<TransportManagerEvents
    *
    * @async
    */
-  async removeAll () {
+  async removeAll (): Promise<void> {
     const tasks = []
     for (const key of this.transports.keys()) {
       tasks.push(this.remove(key))

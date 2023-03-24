@@ -89,7 +89,7 @@ enum __KeyTypeValues {
 }
 
 export namespace KeyType {
-  export const codec = () => {
+  export const codec = (): Codec<KeyType> => {
     return enumeration<KeyType>(__KeyTypeValues)
   }
 }

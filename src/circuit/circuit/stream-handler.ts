@@ -3,7 +3,7 @@ import * as lp from 'it-length-prefixed'
 import { Handshake, handshake } from 'it-handshake'
 import { CircuitRelay } from '../pb/index.js'
 import type { Stream } from '@libp2p/interface-connection'
-import type { Source } from 'it-stream-types'
+import type { Source, Duplex } from 'it-stream-types'
 import type { Uint8ArrayList } from 'uint8arraylist'
 
 const log = logger('libp2p:circuit:stream-handler')
@@ -36,7 +36,7 @@ export class StreamHandler {
   /**
    * Read and decode message
    */
-  async read () {
+  async read (): Promise<CircuitRelay | undefined> {
     // @ts-expect-error FIXME is a source, needs to be a generator
     const msg = await this.decoder.next()
 
@@ -54,7 +54,7 @@ export class StreamHandler {
   /**
    * Encode and write array of buffers
    */
-  write (msg: CircuitRelay) {
+  write (msg: CircuitRelay): void {
     log('write message type %s', msg.type)
     this.shake.write(lp.encode.single(CircuitRelay.encode(msg)))
   }
@@ -62,7 +62,7 @@ export class StreamHandler {
   /**
    * Return the handshake rest stream and invalidate handler
    */
-  rest () {
+  rest (): Duplex<Uint8ArrayList, Uint8ArrayList | Uint8Array, Promise<void>> {
     this.shake.rest()
     return this.shake.stream
   }
@@ -70,7 +70,7 @@ export class StreamHandler {
   /**
    * @param {CircuitRelay} msg - An unencoded CircuitRelay protobuf message
    */
-  end (msg: CircuitRelay) {
+  end (msg: CircuitRelay): void {
     this.write(msg)
     this.close()
   }
@@ -78,7 +78,7 @@ export class StreamHandler {
   /**
    * Close the stream
    */
-  close () {
+  close (): void {
     log('closing the stream')
     void this.rest().sink([]).catch(err => {
       log.error(err)
@@ -88,7 +88,7 @@ export class StreamHandler {
   /**
    * Close underlying muxed stream
    */
-  closeBaseStream () {
+  closeBaseStream (): void {
     this.stream.close()
   }
 }

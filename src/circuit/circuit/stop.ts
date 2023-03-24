@@ -52,7 +52,7 @@ export interface StopOptions extends AbortOptions {
 /**
  * Creates a STOP request
  */
-export async function stop (options: StopOptions) {
+export async function stop (options: StopOptions): Promise<Duplex<Uint8ArrayList, Uint8ArrayList | Uint8Array, Promise<void>> | undefined> {
   const {
     connection,
     request,
