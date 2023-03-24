@@ -5,7 +5,7 @@ import type { StreamHandler } from './stream-handler.js'
 /**
  * Write a response
  */
-function writeResponse (streamHandler: StreamHandler, status: CircuitRelay.Status) {
+function writeResponse (streamHandler: StreamHandler, status: CircuitRelay.Status): void {
   streamHandler.write({
     type: CircuitRelay.Type.STATUS,
     code: status
@@ -15,7 +15,7 @@ function writeResponse (streamHandler: StreamHandler, status: CircuitRelay.Statu
 /**
  * Validate incomming HOP/STOP message
  */
-export function validateAddrs (msg: CircuitRelay, streamHandler: StreamHandler) {
+export function validateAddrs (msg: CircuitRelay, streamHandler: StreamHandler): void {
   try {
     if (msg.dstPeer?.addrs != null) {
       msg.dstPeer.addrs.forEach((addr) => {

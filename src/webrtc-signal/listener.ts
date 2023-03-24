@@ -82,7 +82,7 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
     )
   }
 
-  function processRequest (request: SignallingMessage) {
+  function processRequest (request: SignallingMessage): void {
     const incSignal: Signal = JSON.parse(request.signal)
 
     if (incSignal.type !== 'offer') {
@@ -200,7 +200,7 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
     return []
   }
 
-  async function close () {
+  async function close (): Promise<void> {
     listeningAddr = undefined
     listener.dispatchEvent(new CustomEvent('close'))
   }

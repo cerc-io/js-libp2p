@@ -64,7 +64,7 @@ export class WebRTCSignal implements Transport, Startable {
     void this.dialResponseListener.listen()
   }
 
-  isStarted () {
+  isStarted (): boolean {
     return this.started
   }
 
@@ -90,7 +90,7 @@ export class WebRTCSignal implements Transport, Startable {
     }
   }
 
-  async stop () {
+  async stop (): Promise<void> {
     await this.components.registrar.unhandle(WEBRTC_SIGNAL_CODEC)
   }
 
@@ -98,11 +98,11 @@ export class WebRTCSignal implements Transport, Startable {
     return true
   }
 
-  get [Symbol.toStringTag] () {
+  get [Symbol.toStringTag] (): 'libp2p/webrtc-signal-v1' {
     return 'libp2p/webrtc-signal-v1'
   }
 
-  async _onProtocol (data: IncomingStreamData) {
+  async _onProtocol (data: IncomingStreamData): Promise<void> {
     const { connection, stream } = data
 
     await this._handlePeerSignallingStream(connection.remotePeer.toString(), stream)
@@ -237,7 +237,7 @@ export class WebRTCSignal implements Transport, Startable {
     )
   }
 
-  async _connect (dstPeerId: string, options: AbortOptions) {
+  async _connect (dstPeerId: string, options: AbortOptions): Promise<WebRTCInitiator> {
     const peerId = this.components.peerId.toString()
 
     if (options.signal?.aborted === true) {
@@ -257,7 +257,7 @@ export class WebRTCSignal implements Transport, Startable {
 
       const channel = new WebRTCInitiator()
 
-      const onError = (evt: CustomEvent<Error>) => {
+      const onError = (evt: CustomEvent<Error>): void => {
         const err = evt.detail
 
         if (!connected) {
@@ -269,21 +269,21 @@ export class WebRTCSignal implements Transport, Startable {
         }
       }
 
-      const onReady = () => {
+      const onReady = (): void => {
         connected = true
 
         log('connection opened %s', dstPeerId)
         done()
       }
 
-      const onAbort = () => {
+      const onAbort = (): void => {
         log.error('connection aborted %s', dstPeerId)
         void channel.close().finally(() => {
           done(new AbortError())
         })
       }
 
-      const done = (err?: Error) => {
+      const done = (err?: Error): void => {
         channel.removeEventListener('error', onError)
         channel.removeEventListener('ready', onReady)
         options.signal?.removeEventListener('abort', onAbort)
@@ -306,7 +306,7 @@ export class WebRTCSignal implements Transport, Startable {
       })
       options.signal?.addEventListener('abort', onAbort)
 
-      const onSignal = async (signal: Signal) => {
+      const onSignal = async (signal: Signal): Promise<void> => {
         if (signal.type !== 'offer') {
           // skip candidates, just send the offer as it includes the candidates
           return
@@ -325,7 +325,7 @@ export class WebRTCSignal implements Transport, Startable {
 
           // Wait for response message over the signalling stream
           const responseSignalJson = await new Promise<string>((resolve, reject) => {
-            const onResponse = (evt: CustomEvent<SignallingMessage>) => {
+            const onResponse = (evt: CustomEvent<SignallingMessage>): void => {
               try {
                 const msg = evt.detail
 

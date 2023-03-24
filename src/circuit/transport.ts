@@ -52,7 +52,7 @@ export class Circuit implements Transport, Startable {
     this._started = false
   }
 
-  isStarted () {
+  isStarted (): boolean {
     return this._started
   }
 
@@ -73,15 +73,15 @@ export class Circuit implements Transport, Startable {
       })
   }
 
-  async stop () {
+  async stop (): Promise<void> {
     await this.components.registrar.unhandle(RELAY_CODEC)
   }
 
-  hopEnabled () {
+  hopEnabled (): boolean {
     return true
   }
 
-  hopActive () {
+  hopActive (): boolean {
     return true
   }
 
@@ -89,11 +89,11 @@ export class Circuit implements Transport, Startable {
     return true
   }
 
-  get [Symbol.toStringTag] () {
+  get [Symbol.toStringTag] (): 'libp2p/circuit-relay-v1' {
     return 'libp2p/circuit-relay-v1'
   }
 
-  async _onProtocol (data: IncomingStreamData) {
+  async _onProtocol (data: IncomingStreamData): Promise<void> {
     const { connection, stream } = data
     const controller = new TimeoutController(this._init.hop.timeout)
 
@@ -127,7 +127,7 @@ export class Circuit implements Transport, Startable {
       switch (request.type) {
         case CircuitPB.Type.CAN_HOP: {
           log('received CAN_HOP request from %p', connection.remotePeer)
-          await handleCanHop({ circuit: this, connection, streamHandler })
+          handleCanHop({ circuit: this, connection, streamHandler })
           break
         }
         case CircuitPB.Type.HOP: {
@@ -143,7 +143,7 @@ export class Circuit implements Transport, Startable {
         }
         case CircuitPB.Type.STOP: {
           log('received STOP request from %p', connection.remotePeer)
-          virtualConnection = await handleStop({
+          virtualConnection = handleStop({
             connection,
             request,
             streamHandler

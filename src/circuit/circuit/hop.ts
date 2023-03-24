@@ -37,10 +37,12 @@ export async function handleHop (hopRequest: HopRequest): Promise<void> {
   // Ensure hop is enabled
   if (!circuit.hopEnabled()) {
     log('HOP request received but we are not acting as a relay')
-    return streamHandler.end({
+    streamHandler.end({
       type: CircuitPB.Type.STATUS,
       code: CircuitPB.Status.HOP_CANT_SPEAK_RELAY
     })
+
+    return
   }
 
   // Validate the HOP request has the required input
@@ -63,19 +65,23 @@ export async function handleHop (hopRequest: HopRequest): Promise<void> {
   const destinationConnections = connectionManager.getConnections(destinationPeer)
   if (destinationConnections.length === 0 && !circuit.hopActive()) {
     log('HOP request received but we are not connected to the destination peer')
-    return streamHandler.end({
+    streamHandler.end({
       type: CircuitPB.Type.STATUS,
       code: CircuitPB.Status.HOP_NO_CONN_TO_DST
     })
+
+    return
   }
 
   // TODO: Handle being an active relay
   if (destinationConnections.length === 0) {
     log('did not have connection to remote peer')
-    return streamHandler.end({
+    streamHandler.end({
       type: CircuitPB.Type.STATUS,
       code: CircuitPB.Status.HOP_NO_CONN_TO_DST
     })
+
+    return
   }
 
   // Handle the incoming HOP request by performing a STOP request
@@ -113,7 +119,7 @@ export async function handleHop (hopRequest: HopRequest): Promise<void> {
 
   log('creating related connections')
   // Short circuit the two streams to create the relayed connection
-  return await pipe(
+  await pipe(
     sourceStream,
     destinationStream,
     sourceStream
@@ -169,7 +175,7 @@ export interface CanHopOptions extends AbortOptions {
 /**
  * Performs a CAN_HOP request to a relay peer, in order to understand its capabilities
  */
-export async function canHop (options: CanHopOptions) {
+export async function canHop (options: CanHopOptions): Promise<boolean> {
   const {
     connection,
     signal
@@ -187,7 +193,7 @@ export async function canHop (options: CanHopOptions) {
   })
 
   const response = await streamHandler.read()
-  await streamHandler.close()
+  streamHandler.close()
 
   if (response == null || response.code !== CircuitPB.Status.SUCCESS) {
     return false
@@ -205,7 +211,7 @@ export interface HandleCanHopOptions {
 /**
  * Creates an unencoded CAN_HOP response based on the Circuits configuration
  */
-export function handleCanHop (options: HandleCanHopOptions) {
+export function handleCanHop (options: HandleCanHopOptions): void {
   const {
     connection,
     streamHandler,

@@ -86,7 +86,7 @@ describe('Dialing (resolvable addresses)', () => {
 
   afterEach(async () => {
     sinon.restore()
-    await Promise.all([libp2p, remoteLibp2p].map(async n => await n.stop()))
+    await Promise.all([libp2p, remoteLibp2p].map(async n => { await n.stop() }))
   })
 
   it('resolves dnsaddr to ws local address', async () => {

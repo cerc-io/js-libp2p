@@ -136,7 +136,7 @@ async function createJsPeer (options: SpawnOptions): Promise<Daemon> {
 
   const node = await createLibp2p(opts)
 
-  const server = await createServer(multiaddr('/ip4/0.0.0.0/tcp/0'), node)
+  const server = createServer(multiaddr('/ip4/0.0.0.0/tcp/0'), node)
   await server.start()
 
   return {

@@ -67,7 +67,7 @@ const defaultOptions = {
   }
 }
 
-function validateKeyName (name: string) {
+function validateKeyName (name: string): boolean {
   if (name == null) {
     return false
   }
@@ -83,7 +83,7 @@ function validateKeyName (name: string) {
  * This assumes than an error indicates that the keychain is under attack. Delay returning an
  * error to make brute force attacks harder.
  */
-async function randomDelay () {
+async function randomDelay (): Promise<void> {
   const min = 200
   const max = 1000
   const delay = Math.random() * (max - min) + min
@@ -94,14 +94,14 @@ async function randomDelay () {
 /**
  * Converts a key name into a datastore name
  */
-function DsName (name: string) {
+function DsName (name: string): Key {
   return new Key(keyPrefix + name)
 }
 
 /**
  * Converts a key name into a datastore info name
  */
-function DsInfoName (name: string) {
+function DsInfoName (name: string): Key {
   return new Key(infoPrefix + name)
 }
 
@@ -157,11 +157,11 @@ export class KeyChain implements Startable {
     this.started = false
   }
 
-  isStarted () {
+  isStarted (): boolean {
     return this.started
   }
 
-  async start () {
+  async start (): Promise<void> {
     const dsname = DsInfoName('self')
 
     if (!(await this.components.datastore.has(dsname))) {
@@ -171,7 +171,7 @@ export class KeyChain implements Startable {
     this.started = true
   }
 
-  stop () {
+  stop (): void {
     this.started = false
   }
 
@@ -183,7 +183,7 @@ export class KeyChain implements Startable {
    * is used to digitally sign, digest, authenticate, or encrypt
    * arbitrary message content
    */
-  get cms () {
+  get cms (): CMS {
     const cached = privates.get(this)
 
     if (cached == null) {
@@ -213,7 +213,7 @@ export class KeyChain implements Startable {
    *
    * @returns {object}
    */
-  static get options () {
+  static get options (): object {
     return defaultOptions
   }
 
@@ -224,7 +224,7 @@ export class KeyChain implements Startable {
    * @param {string} type - One of the key types; 'rsa'.
    * @param {number} [size = 2048] - The key size in bits. Used for rsa keys only
    */
-  async createKey (name: string, type: KeyTypes, size = 2048): Promise<KeyInfo> {
+  async createKey (name: string, type: KeyTypes, size: number = 2048): Promise<KeyInfo> {
     if (!validateKeyName(name) || name === 'self') {
       await randomDelay()
       throw errCode(new Error('Invalid key name'), codes.ERR_INVALID_KEY_NAME)
@@ -287,7 +287,7 @@ export class KeyChain implements Startable {
    *
    * @returns {Promise<KeyInfo[]>}
    */
-  async listKeys () {
+  async listKeys (): Promise<KeyInfo[]> {
     const query = {
       prefix: infoPrefix
     }
@@ -303,7 +303,7 @@ export class KeyChain implements Startable {
   /**
    * Find a key by it's id
    */
-  async findKeyById (id: string): Promise<KeyInfo> {
+  async findKeyById (id: string): Promise<KeyInfo | undefined> {
     try {
       const keys = await this.listKeys()
       return keys.find((k) => k.id === id)
@@ -342,7 +342,7 @@ export class KeyChain implements Startable {
    * @param {string} name - The local key name; must already exist.
    * @returns {Promise<KeyInfo>}
    */
-  async removeKey (name: string) {
+  async removeKey (name: string): Promise<KeyInfo> {
     if (!validateKeyName(name) || name === 'self') {
       await randomDelay()
       throw errCode(new Error(`Invalid key name '${name}'`), codes.ERR_INVALID_KEY_NAME)
@@ -405,7 +405,7 @@ export class KeyChain implements Startable {
   /**
    * Export an existing key as a PEM encrypted PKCS #8 string
    */
-  async exportKey (name: string, password: string) {
+  async exportKey (name: string, password: string): Promise<string> {
     if (!validateKeyName(name)) {
       await randomDelay()
       throw errCode(new Error(`Invalid key name '${name}'`), codes.ERR_INVALID_KEY_NAME)
@@ -437,7 +437,7 @@ export class KeyChain implements Startable {
   /**
    * Export an existing key as a PeerId
    */
-  async exportPeerId (name: string) {
+  async exportPeerId (name: string): Promise<PeerId> {
     const password = 'temporary-password'
     const pem = await this.exportKey(name, password)
     const privateKey = await importKey(pem, password)
@@ -575,7 +575,7 @@ export class KeyChain implements Startable {
   /**
    * Rotate keychain password and re-encrypt all associated keys
    */
-  async rotateKeychainPass (oldPass: string, newPass: string) {
+  async rotateKeychainPass (oldPass: string, newPass: string): Promise<void> {
     if (typeof oldPass !== 'string') {
       await randomDelay()
       throw errCode(new Error(`Invalid old pass type '${typeof oldPass}'`), codes.ERR_INVALID_OLD_PASS_TYPE)

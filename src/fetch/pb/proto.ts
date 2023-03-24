@@ -84,7 +84,7 @@ export namespace FetchResponse {
   }
 
   export namespace StatusCode {
-    export const codec = () => {
+    export const codec = (): Codec<StatusCode> => {
       return enumeration<StatusCode>(__StatusCodeValues)
     }
   }
