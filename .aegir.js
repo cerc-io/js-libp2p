@@ -44,6 +44,10 @@ export default {
             active: false
           }
         },
+        webRTCSignal: {
+          enabled: true,
+          isSignallingNode: true
+        },
         nat: {
           enabled: false
         }
