@@ -142,6 +142,7 @@ export class WebRTCSignal implements Transport, Startable {
     const signallingMsg: SignallingMessage = JSON.parse(uint8ArrayToString(msg.data))
     const destStream = this.peerSignallingInputStreams.get(signallingMsg.dst)
     if (destStream !== undefined) {
+      log('pubsub: outgoing stream found for dest', signallingMsg.dst)
       destStream.push(signallingMsg)
     }
   }
@@ -231,6 +232,7 @@ export class WebRTCSignal implements Transport, Startable {
           // Forward the signalling message to the destination
           const destStream = this.peerSignallingInputStreams.get(msg.dst)
           if (destStream !== undefined) {
+            log('outgoing stream found for dest', msg.dst)
             destStream.push(msg)
           } else {
             log('outgoing stream not found for dest', msg.dst)

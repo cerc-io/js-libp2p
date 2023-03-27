@@ -70,15 +70,18 @@ export function createListener (options: ListenerOptions, peerInputStream: Pusha
       async (source) => {
         // For each chunk of data
         for await (const msg of source) {
-          switch ((msg as SignallingMessage).type) {
+          const signallingMsg = (msg as SignallingMessage)
+          switch (signallingMsg.type) {
             case Type.REQUEST:
-              processRequest(msg)
+              log('got webrtc request from', signallingMsg.src)
+              processRequest(signallingMsg)
               break
             case Type.RESPONSE:
-              dialResponseStream.push(msg)
+              log('got webrtc response from', signallingMsg.src)
+              dialResponseStream.push(signallingMsg)
               break
             default:
-              log('unknown message', msg)
+              log('unknown message', signallingMsg)
               break
           }
         }
