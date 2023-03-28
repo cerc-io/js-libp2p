@@ -15,7 +15,7 @@ import { MULTIADDRS_WEBSOCKETS } from '../fixtures/browser.js'
 import peers from '../fixtures/peers.js'
 import { createPeerNode } from './utils.js'
 
-async function receivedListenerEvent (node: Libp2pNode): Promise<void> {
+async function receivedListenerListeningEvent (node: Libp2pNode): Promise<void> {
   await new Promise<void>((resolve) => {
     node.components.transportManager.addEventListener('listener:listening', (evt) => {
       const listener = evt.detail
@@ -25,6 +25,18 @@ async function receivedListenerEvent (node: Libp2pNode): Promise<void> {
           resolve()
         }
       })
+    })
+  })
+}
+
+async function receivedListenerCloseEvent (node: Libp2pNode): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let eventCounter = 0
+    node.components.transportManager.addEventListener('listener:close', () => {
+      eventCounter++
+      if (eventCounter === 2) {
+        resolve()
+      }
     })
   })
 }
@@ -39,12 +51,7 @@ async function discoveredRelayConfig (node: Libp2pNode, relayPeerId: PeerId): Pr
   })
 }
 
-async function updatedMultiaddrs (node: Libp2pNode): Promise<void> {
-  const expectedMultiaddrs = [
-    `${MULTIADDRS_WEBSOCKETS[0].toString()}/p2p-circuit/p2p/${node.peerId}`,
-    `${MULTIADDRS_WEBSOCKETS[0].toString()}/${P2P_WEBRTC_STAR_ID}/p2p/${node.peerId}`
-  ]
-
+async function updatedMultiaddrs (node: Libp2pNode, expectedMultiaddrs: string[]): Promise<void> {
   await pWaitFor(async () => {
     const multiaddrs = node.getMultiaddrs().map(addr => addr.toString())
 
@@ -60,6 +67,7 @@ describe('auto-signal', () => {
   let libp2p: Libp2pNode
   let relayPeerId: PeerId
   let relayPeerIdString: string
+  let libp2pListeningAddrs: string[]
 
   before(async () => {
     const relayPeerIdJson = peers[peers.length - 1]
@@ -69,6 +77,11 @@ describe('auto-signal', () => {
     // Create a node and with a primary relay node
     libp2p = await createPeerNode(relayPeerIdString)
     await libp2p.start()
+
+    libp2pListeningAddrs = [
+      `${MULTIADDRS_WEBSOCKETS[0].toString()}/p2p-circuit/p2p/${libp2p.peerId}`,
+      `${MULTIADDRS_WEBSOCKETS[0].toString()}/${P2P_WEBRTC_STAR_ID}/p2p/${libp2p.peerId}`
+    ]
   })
 
   after(async () => {
@@ -81,13 +94,43 @@ describe('auto-signal', () => {
     await libp2p.dial(relayPeerId)
 
     // Wait for the webrtc-signal listening event
-    await receivedListenerEvent(libp2p)
+    await expect(receivedListenerListeningEvent(libp2p)).to.be.eventually.fulfilled()
 
     // Wait for peer added as listen relay
-    await discoveredRelayConfig(libp2p, relayPeerId)
+    await expect(discoveredRelayConfig(libp2p, relayPeerId)).to.be.eventually.fulfilled()
 
     // Check multiaddrs of the connected node
-    await updatedMultiaddrs(libp2p)
+    await expect(updatedMultiaddrs(libp2p, libp2pListeningAddrs)).to.be.eventually.fulfilled()
+
+    // Check that signalling stream exists with the relay node
+    expect(libp2p.connectionManager.getConnections(relayPeerId)[0].streams.find(stream => stream.stat.protocol === WEBRTC_SIGNAL_CODEC)).to.not.be.empty()
+  })
+
+  it('should stop listening on disconnecting from the relay node', async () => {
+    // Check that both the listeners for the peer node get closed
+    const listenersClosed = receivedListenerCloseEvent(libp2p)
+
+    // Check multiaddrs of the connected node
+    const multiaddrsUpdated = updatedMultiaddrs(libp2p, [])
+
+    // Disconnect from the relay node
+    await libp2p.hangUp(relayPeerId)
+
+    await expect(listenersClosed).to.be.eventually.fulfilled()
+    await expect(multiaddrsUpdated).to.be.eventually.fulfilled()
+  })
+
+  it('should start listening on reconnecting to the relay node', async () => {
+    await libp2p.dial(relayPeerId)
+
+    // Wait for the webrtc-signal listening event
+    await expect(receivedListenerListeningEvent(libp2p)).to.be.eventually.fulfilled()
+
+    // Wait for peer added as listen relay
+    await expect(discoveredRelayConfig(libp2p, relayPeerId)).to.be.eventually.fulfilled()
+
+    // Check multiaddrs of the connected node
+    await expect(updatedMultiaddrs(libp2p, libp2pListeningAddrs)).to.be.eventually.fulfilled()
 
     // Check that signalling stream exists with the relay node
     expect(libp2p.connectionManager.getConnections(relayPeerId)[0].streams.find(stream => stream.stat.protocol === WEBRTC_SIGNAL_CODEC)).to.not.be.empty()
