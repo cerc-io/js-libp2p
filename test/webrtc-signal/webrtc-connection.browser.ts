@@ -13,104 +13,160 @@ import type { Connection } from '@libp2p/interface-connection'
 import type { Libp2pNode } from '../../src/libp2p.js'
 import { P2P_WEBRTC_STAR_ID } from '../../src/webrtc-signal/constants.js'
 import { MULTIADDRS_WEBSOCKETS } from '../fixtures/browser.js'
-import peers from '../fixtures/peers.js'
-import { createPeerNode, updatedMultiaddrs } from './utils.js'
+import Peers from '../fixtures/peers.js'
+import { createPeer } from './utils.js'
 
-describe('webrtc-connections', () => {
-  let libp2p1: Libp2pNode
-  let libp2p2: Libp2pNode
-  let conn: Connection
+describe('webrtc-connections: single relay setup', () => {
+  describe('single relay setup', () => {
+    let relayPeerId: PeerId
+    let libp2p1: Libp2pNode
+    let libp2p2: Libp2pNode
+    let conn: Connection
 
-  let relayPeerId: PeerId
-  let relayPeerIdString: string
+    before(async () => {
+      const relayPeerIdJson = Peers[Peers.length - 1]
+      relayPeerId = await createFromJSON(relayPeerIdJson)
 
-  before(async () => {
-    const relayPeerIdJson = peers[peers.length - 1]
-    relayPeerId = await createFromJSON(relayPeerIdJson)
-    relayPeerIdString = relayPeerIdJson.id
+      // Create peer nodes connected to their primary relay node
+      const libp2pPromise1 = createPeer(relayPeerId, MULTIADDRS_WEBSOCKETS[0])
+      const libp2pPromise2 = createPeer(relayPeerId, MULTIADDRS_WEBSOCKETS[0])
+      ;[libp2p1, libp2p2] = await Promise.all([libp2pPromise1, libp2pPromise2])
 
-    // Create peer nodes with primary relay node addr
-    libp2p1 = await createPeerNode(relayPeerIdString)
-    libp2p2 = await createPeerNode(relayPeerIdString)
+      // Handle an echo protocol on the second peer
+      await libp2p2.handle('/echo/1.0.0', ({ stream }) => {
+        void pipe(stream, stream)
+      })
+    })
 
-    // Connect the peer nodes to the relay node
-    await Promise.all([libp2p1, libp2p2].map(async libp2p => {
-      await libp2p.start()
-      await libp2p.peerStore.addressBook.add(relayPeerId, MULTIADDRS_WEBSOCKETS)
-      await libp2p.dial(relayPeerId)
+    afterEach(async () => {
+      // Close the webrtc connection between peers
+      await conn.close()
+    })
 
-      const libp2pListeningAddrs = [
-        `${MULTIADDRS_WEBSOCKETS[0].toString()}/p2p-circuit/p2p/${libp2p.peerId}`,
-        `${MULTIADDRS_WEBSOCKETS[0].toString()}/${P2P_WEBRTC_STAR_ID}/p2p/${libp2p.peerId}`
-      ]
-      await updatedMultiaddrs(libp2p, libp2pListeningAddrs)
-    }))
+    after(async () => {
+      // Stop each node
+      await Promise.all([libp2p1, libp2p2].map(async libp2p => { await libp2p.stop() }))
+    })
 
-    // Handle an echo protocol on the second peer
-    await libp2p2.handle('/echo/1.0.0', ({ stream }) => {
-      void pipe(stream, stream)
+    it('should dial and form a webrtc connection with another peer', async () => {
+      conn = await createP2PConnection(libp2p1, libp2p2)
+      await testP2PConnection(conn)
+    })
+
+    it('should keep the webrtc connection with peer even on disconnecting from the relay node', async () => {
+      conn = await createP2PConnection(libp2p1, libp2p2)
+
+      // Disconnect peer1 from the relay node
+      await libp2p1.hangUp(relayPeerId)
+
+      await testP2PConnection(conn)
     })
   })
 
-  afterEach(async () => {
-    // Close the webrtc connection between peers
-    await conn.close()
+  describe('federated relay setup - connected relays', () => {
+    let relayPeerId1: PeerId
+    let relayPeerId2: PeerId
+    let libp2p1: Libp2pNode
+    let libp2p2: Libp2pNode
+    let conn: Connection
+
+    before(async () => {
+      relayPeerId1 = await createFromJSON(Peers[Peers.length - 1])
+      relayPeerId2 = await createFromJSON(Peers[Peers.length - 2])
+
+      // Create peer nodes connected to their primary relay node
+      const libp2pPromise1 = createPeer(relayPeerId1, MULTIADDRS_WEBSOCKETS[0])
+      const libp2pPromise2 = createPeer(relayPeerId2, MULTIADDRS_WEBSOCKETS[1])
+      ;[libp2p1, libp2p2] = await Promise.all([libp2pPromise1, libp2pPromise2])
+
+      // Handle an echo protocol on the second peer
+      await libp2p2.handle('/echo/1.0.0', ({ stream }) => {
+        void pipe(stream, stream)
+      })
+    })
+
+    afterEach(async () => {
+      // Close the webrtc connection between peers
+      await conn.close()
+    })
+
+    after(async () => {
+      // Stop each node
+      await Promise.all([libp2p1, libp2p2].map(async libp2p => { await libp2p.stop() }))
+    })
+
+    it('should dial and form a webrtc connection with peer connected to another relay node', async () => {
+      conn = await createP2PConnection(libp2p1, libp2p2)
+      await testP2PConnection(conn)
+    })
   })
 
-  after(async () => {
-    // Stop each node
-    await Promise.all([libp2p1, libp2p2].map(async libp2p => { await libp2p.stop() }))
-  })
+  describe('federated relay setup - disconnected relays', () => {
+    let relayPeerId1: PeerId
+    let relayPeerId2: PeerId
+    let libp2p1: Libp2pNode
+    let libp2p2: Libp2pNode
+    let conn: Connection
 
-  it('should dial and form a webrtc connection with another peer', async () => {
-    const dialAddr = libp2p2.getMultiaddrs().find(addr => addr.toString().includes(P2P_WEBRTC_STAR_ID))
-    assert(dialAddr, 'webrtc-star multiaddr not found')
+    before(async () => {
+      relayPeerId1 = await createFromJSON(Peers[Peers.length - 1])
+      relayPeerId2 = await createFromJSON(Peers[Peers.length - 3])
 
-    // Dial from frist node to the other using the webrtc-star address
-    conn = await libp2p1.dial(dialAddr)
+      // Create peer nodes connected to their primary relay node
+      const libp2pPromise1 = createPeer(relayPeerId1, MULTIADDRS_WEBSOCKETS[0])
+      const libp2pPromise2 = createPeer(relayPeerId2, MULTIADDRS_WEBSOCKETS[2])
+      ;[libp2p1, libp2p2] = await Promise.all([libp2pPromise1, libp2pPromise2])
 
-    // Check connection params
-    expect(conn).to.exist()
-    expect(conn.remotePeer.toBytes()).to.eql(libp2p2.peerId.toBytes())
-    expect(conn.remoteAddr).to.eql(dialAddr)
+      // Handle an echo protocol on the second peer
+      await libp2p2.handle('/echo/1.0.0', ({ stream }) => {
+        void pipe(stream, stream)
+      })
+    })
 
-    // Create an echo stream over the webrtc connection
-    const echoStream = await conn.newStream('/echo/1.0.0')
+    afterEach(async () => {
+      // Close the webrtc connection between peers
+      await conn.close()
+    })
 
-    // Send and receive echo
-    const input = uint8ArrayFromString('hello')
-    const [output] = await pipe(
-      [input],
-      echoStream,
-      async (source) => await all(source)
-    )
+    after(async () => {
+      // Stop each node
+      await Promise.all([libp2p1, libp2p2].map(async libp2p => { await libp2p.stop() }))
+    })
 
-    // Check returned echo
-    expect(output.slice()).to.eql(input)
-  })
-
-  it('should keep the webrtc connection with peer even on disconnecting from the relay node', async () => {
-    const dialAddr = libp2p2.getMultiaddrs().find(addr => addr.toString().includes(P2P_WEBRTC_STAR_ID))
-    assert(dialAddr, 'webrtc-star multiaddr not found')
-
-    // Dial from frist node to the other using the webrtc-star address
-    conn = await libp2p1.dial(dialAddr)
-
-    // Create an echo stream over the webrtc connection
-    const echoStream = await conn.newStream('/echo/1.0.0')
-
-    // Disconnect from the relay node
-    await libp2p1.hangUp(relayPeerId)
-
-    // Check echo after disconnecting from the relay node
-    const input = uint8ArrayFromString('hello')
-    const [output] = await pipe(
-      [input],
-      echoStream,
-      async (source) => await all(source)
-    )
-
-    // Check returned echo
-    expect(output.slice()).to.eql(input)
+    it('should dial and form a webrtc connection with peer connected to another relay node', async () => {
+      conn = await createP2PConnection(libp2p1, libp2p2)
+      await testP2PConnection(conn)
+    })
   })
 })
+
+async function createP2PConnection (libp2p1: Libp2pNode, libp2p2: Libp2pNode): Promise<Connection> {
+  const dialAddr = libp2p2.getMultiaddrs().find(addr => addr.toString().includes(P2P_WEBRTC_STAR_ID))
+  assert(dialAddr, 'webrtc-star multiaddr not found')
+
+  // Dial from first node to the other using the webrtc-star address
+  const conn = await libp2p1.dial(dialAddr)
+
+  // Check connection params
+  expect(conn).to.exist()
+  expect(conn.remotePeer.toBytes()).to.eql(libp2p2.peerId.toBytes())
+  expect(conn.remoteAddr).to.eql(dialAddr)
+
+  return conn
+}
+
+async function testP2PConnection (conn: Connection): Promise<void> {
+  // Create an echo stream over the webrtc connection
+  const echoStream = await conn.newStream('/echo/1.0.0')
+
+  // Send and receive echo
+  const input = uint8ArrayFromString('hello')
+  const [output] = await pipe(
+    [input],
+    echoStream,
+    async (source) => await all(source)
+  )
+
+  // Check returned echo
+  expect(output.slice()).to.eql(input)
+}

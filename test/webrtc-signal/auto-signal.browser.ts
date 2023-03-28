@@ -9,9 +9,9 @@ import type { Libp2pNode } from '../../src/libp2p.js'
 import { WEBRTC_SIGNAL_CODEC } from '../../src/webrtc-signal/multicodec.js'
 import { P2P_WEBRTC_STAR_ID } from '../../src/webrtc-signal/constants.js'
 import { MULTIADDRS_WEBSOCKETS } from '../fixtures/browser.js'
-import peers from '../fixtures/peers.js'
+import Peers from '../fixtures/peers.js'
 import {
-  createPeerNode,
+  createLibp2p,
   discoveredRelayConfig,
   receivedListenerCloseEvent,
   receivedListenerListeningEvent,
@@ -25,12 +25,12 @@ describe('auto-signal', () => {
   let libp2pListeningAddrs: string[]
 
   before(async () => {
-    const relayPeerIdJson = peers[peers.length - 1]
+    const relayPeerIdJson = Peers[Peers.length - 1]
     relayPeerId = await createFromJSON(relayPeerIdJson)
     relayPeerIdString = relayPeerIdJson.id
 
     // Create a node with a primary relay node addr
-    libp2p = await createPeerNode(relayPeerIdString)
+    libp2p = await createLibp2p(relayPeerIdString)
     await libp2p.start()
 
     libp2pListeningAddrs = [
@@ -45,7 +45,7 @@ describe('auto-signal', () => {
   })
 
   it('should start listening through a singalling stream to the relay node', async () => {
-    await libp2p.peerStore.addressBook.add(relayPeerId, MULTIADDRS_WEBSOCKETS)
+    await libp2p.peerStore.addressBook.add(relayPeerId, [MULTIADDRS_WEBSOCKETS[0]])
     await libp2p.dial(relayPeerId)
 
     // Wait for the webrtc-signal listening event

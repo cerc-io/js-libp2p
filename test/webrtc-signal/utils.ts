@@ -18,7 +18,25 @@ import { P2P_WEBRTC_STAR_ID } from '../../src/webrtc-signal/constants.js'
 export const CODE_P2P = 421
 export const CODE_CIRCUIT = 290
 
-export async function createPeerNode (relayPeerId?: string): Promise<Libp2pNode> {
+export async function createPeer (relayPeerId: PeerId, relayMultiaddr: Multiaddr): Promise<Libp2pNode> {
+  // Create a peer node with primary relay node addr
+  const libp2p = await createLibp2p(relayPeerId.toString())
+
+  // Connect the peer to the relay node
+  await libp2p.start()
+  await libp2p.peerStore.addressBook.add(relayPeerId, [relayMultiaddr])
+  await libp2p.dial(relayPeerId)
+
+  const libp2pListeningAddrs = [
+    `${relayMultiaddr.toString()}/p2p-circuit/p2p/${libp2p.peerId}`,
+    `${relayMultiaddr.toString()}/${P2P_WEBRTC_STAR_ID}/p2p/${libp2p.peerId}`
+  ]
+  await updatedMultiaddrs(libp2p, libp2pListeningAddrs)
+
+  return libp2p
+}
+
+export async function createLibp2p (relayPeerId?: string): Promise<Libp2pNode> {
   let webRTCSignal = {}
   if (relayPeerId !== undefined && relayPeerId !== '') {
     webRTCSignal = {
