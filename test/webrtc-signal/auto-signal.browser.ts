@@ -44,7 +44,7 @@ describe('auto-signal', () => {
     await libp2p.stop()
   })
 
-  it('should start listening through a singalling stream to the relay node', async () => {
+  it('should start listening through a signalling stream to the relay node', async () => {
     await libp2p.peerStore.addressBook.add(relayPeerId, [MULTIADDRS_WEBSOCKETS[0]])
     await libp2p.dial(relayPeerId)
 

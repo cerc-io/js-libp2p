@@ -63,7 +63,7 @@ describe('webrtc-connections: single relay setup', () => {
     })
   })
 
-  describe('federated relay setup - connected relays', () => {
+  describe('federated relay setup - direct connection between relay nodes', () => {
     let relayPeerId1: PeerId
     let relayPeerId2: PeerId
     let libp2p1: Libp2pNode
@@ -101,7 +101,7 @@ describe('webrtc-connections: single relay setup', () => {
     })
   })
 
-  describe('federated relay setup - disconnected relays', () => {
+  describe('federated relay setup - no direct connection between relay nodes', () => {
     let relayPeerId1: PeerId
     let relayPeerId2: PeerId
     let libp2p1: Libp2pNode
