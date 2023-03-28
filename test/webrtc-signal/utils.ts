@@ -1,11 +1,17 @@
+import pWaitFor from 'p-wait-for'
+import _ from 'lodash'
+
 import * as mafmt from '@multiformats/mafmt'
 import { webSockets } from '@libp2p/websockets'
 import { mplex } from '@libp2p/mplex'
 import type { Multiaddr } from '@multiformats/multiaddr'
+import type { PeerId } from '@libp2p/interface-peer-id'
 
 import type { Libp2pOptions } from '../../src/index.js'
 import { plaintext } from '../../src/insecure/index.js'
 import { createLibp2pNode, Libp2pNode } from '../../src/libp2p.js'
+import { RELAY_CODEC } from '../../src/circuit/multicodec.js'
+import { WEBRTC_SIGNAL_CODEC } from '../../src/webrtc-signal/multicodec.js'
 import { P2P_WEBRTC_STAR_ID } from '../../src/webrtc-signal/constants.js'
 
 // p2p multi-address codes
@@ -45,37 +51,6 @@ export async function createPeerNode (relayPeerId?: string): Promise<Libp2pNode>
   return await createLibp2pNode(options)
 }
 
-// export interface RelayNodeInit {
-//   host: string
-//   port: number
-// }
-
-// export async function createRelayNode (init: RelayNodeInit): Promise<Libp2pNode> {
-//   const options: Libp2pOptions = {
-//     addresses: {
-//       listen: [`/ip4/${init.host}/tcp/${init.port}/ws`]
-//     },
-//     transports: [webSockets()],
-//     connectionEncryption: [plaintext()],
-//     streamMuxers: [mplex()],
-//     relay: {
-//       enabled: true,
-//       hop: {
-//         enabled: true
-//       }
-//     },
-//     webRTCSignal: {
-//       enabled: true,
-//       isSignallingNode: true
-//     },
-//     connectionManager: {
-//       autoDial: false
-//     }
-//   }
-
-//   return await createLibp2pNode(options)
-// }
-
 const wsPeerFilter = (multiaddrs: Multiaddr[]): Multiaddr[] => {
   return multiaddrs.filter((ma) => {
     if (ma.protoCodes().includes(CODE_CIRCUIT)) {
@@ -90,5 +65,53 @@ const wsPeerFilter = (multiaddrs: Multiaddr[]): Multiaddr[] => {
 
     return mafmt.WebSockets.matches(testMa) ||
       mafmt.WebSocketsSecure.matches(testMa)
+  })
+}
+
+export async function receivedListenerListeningEvent (node: Libp2pNode): Promise<void> {
+  await new Promise<void>((resolve) => {
+    node.components.transportManager.addEventListener('listener:listening', (evt) => {
+      const listener = evt.detail
+      const addrs = listener.getAddrs()
+      addrs.forEach((addr) => {
+        if (addr.toString().includes(P2P_WEBRTC_STAR_ID)) {
+          resolve()
+        }
+      })
+    })
+  })
+}
+
+export async function receivedListenerCloseEvent (node: Libp2pNode): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let eventCounter = 0
+    node.components.transportManager.addEventListener('listener:close', () => {
+      eventCounter++
+      if (eventCounter === 2) {
+        resolve()
+      }
+    })
+  })
+}
+
+export async function discoveredRelayConfig (node: Libp2pNode, relayPeerId: PeerId): Promise<void> {
+  await pWaitFor(async () => {
+    const peerData = await node.peerStore.get(relayPeerId)
+    const supportsRelay = peerData.protocols.includes(RELAY_CODEC)
+    const supportsWebRTCSignalling = peerData.protocols.includes(WEBRTC_SIGNAL_CODEC)
+
+    return supportsRelay && supportsWebRTCSignalling
+  })
+}
+
+export async function updatedMultiaddrs (node: Libp2pNode, expectedMultiaddrs: string[]): Promise<void> {
+  await pWaitFor(async () => {
+    const multiaddrs = node.getMultiaddrs().map(addr => addr.toString())
+
+    if (multiaddrs.length !== expectedMultiaddrs.length) {
+      return false
+    }
+
+    return _.isEqual(multiaddrs.sort(), expectedMultiaddrs.sort())
   })
 }

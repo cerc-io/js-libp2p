@@ -1,67 +1,22 @@
 /* eslint-env mocha */
 
 import { expect } from 'aegir/chai'
-import pWaitFor from 'p-wait-for'
-import _ from 'lodash'
 
 import { createFromJSON } from '@libp2p/peer-id-factory'
 import type { PeerId } from '@libp2p/interface-peer-id'
 
 import type { Libp2pNode } from '../../src/libp2p.js'
-import { RELAY_CODEC } from '../../src/circuit/multicodec.js'
 import { WEBRTC_SIGNAL_CODEC } from '../../src/webrtc-signal/multicodec.js'
 import { P2P_WEBRTC_STAR_ID } from '../../src/webrtc-signal/constants.js'
 import { MULTIADDRS_WEBSOCKETS } from '../fixtures/browser.js'
 import peers from '../fixtures/peers.js'
-import { createPeerNode } from './utils.js'
-
-async function receivedListenerListeningEvent (node: Libp2pNode): Promise<void> {
-  await new Promise<void>((resolve) => {
-    node.components.transportManager.addEventListener('listener:listening', (evt) => {
-      const listener = evt.detail
-      const addrs = listener.getAddrs()
-      addrs.forEach((addr) => {
-        if (addr.toString().includes(P2P_WEBRTC_STAR_ID)) {
-          resolve()
-        }
-      })
-    })
-  })
-}
-
-async function receivedListenerCloseEvent (node: Libp2pNode): Promise<void> {
-  await new Promise<void>((resolve) => {
-    let eventCounter = 0
-    node.components.transportManager.addEventListener('listener:close', () => {
-      eventCounter++
-      if (eventCounter === 2) {
-        resolve()
-      }
-    })
-  })
-}
-
-async function discoveredRelayConfig (node: Libp2pNode, relayPeerId: PeerId): Promise<void> {
-  await pWaitFor(async () => {
-    const peerData = await node.peerStore.get(relayPeerId)
-    const supportsRelay = peerData.protocols.includes(RELAY_CODEC)
-    const supportsWebRTCSignalling = peerData.protocols.includes(WEBRTC_SIGNAL_CODEC)
-
-    return supportsRelay && supportsWebRTCSignalling
-  })
-}
-
-async function updatedMultiaddrs (node: Libp2pNode, expectedMultiaddrs: string[]): Promise<void> {
-  await pWaitFor(async () => {
-    const multiaddrs = node.getMultiaddrs().map(addr => addr.toString())
-
-    if (multiaddrs.length !== expectedMultiaddrs.length) {
-      return false
-    }
-
-    return _.isEqual(multiaddrs.sort(), expectedMultiaddrs.sort())
-  })
-}
+import {
+  createPeerNode,
+  discoveredRelayConfig,
+  receivedListenerCloseEvent,
+  receivedListenerListeningEvent,
+  updatedMultiaddrs
+} from './utils.js'
 
 describe('auto-signal', () => {
   let libp2p: Libp2pNode
@@ -74,7 +29,7 @@ describe('auto-signal', () => {
     relayPeerId = await createFromJSON(relayPeerIdJson)
     relayPeerIdString = relayPeerIdJson.id
 
-    // Create a node and with a primary relay node
+    // Create a node with a primary relay node addr
     libp2p = await createPeerNode(relayPeerIdString)
     await libp2p.start()
 
