@@ -1,8 +1,10 @@
 import { webSockets } from '@libp2p/websockets'
 import { mplex } from '@libp2p/mplex'
 import { noise } from '@chainsafe/libp2p-noise'
+import { floodsub } from '@libp2p/floodsub'
 import { pipe } from 'it-pipe'
 import { createFromJSON } from '@libp2p/peer-id-factory'
+import mergeOptions from 'merge-options'
 
 /** @type {import('aegir').PartialOptions} */
 export default {
@@ -17,22 +19,17 @@ export default {
       const { plaintext } = await import('./dist/src/insecure/index.js')
       const { default: Peers } = await import('./dist/test/fixtures/peers.js')
 
-      // Use the last peer
-      const peerId = await createFromJSON(Peers[Peers.length - 1])
-      const libp2p = await createLibp2p({
+      const options = {
         connectionManager: {
           inboundConnectionThreshold: Infinity
         },
-        addresses: {
-          listen: [MULTIADDRS_WEBSOCKETS[0]]
-        },
-        peerId,
         transports: [
           webSockets()
         ],
         streamMuxers: [
           mplex()
         ],
+        pubsub: floodsub({ globalSignaturePolicy: 'StrictSign' }),
         connectionEncryption: [
           noise(),
           plaintext()
@@ -44,22 +41,50 @@ export default {
             active: false
           }
         },
+        webRTCSignal: {
+          enabled: true,
+          isSignallingNode: true
+        },
         nat: {
           enabled: false
         }
-      })
-      // Add the echo protocol
-      await libp2p.handle('/echo/1.0.0', ({ stream }) => {
-        pipe(stream, stream)
-          .catch() // sometimes connections are closed before multistream-select finishes which causes an error
-      })
+      }
+
+      const peers = []
+      for (let index = 0; index < 3; index++) {
+        const peerId = await createFromJSON(Peers[Peers.length - index - 1])
+        const peerOptions = {
+          peerId,
+          addresses: {
+            listen: [MULTIADDRS_WEBSOCKETS[index]]
+          }
+        }
+
+        const libp2p = await createLibp2p(mergeOptions(options, peerOptions))
+
+        // Add the echo protocol
+        await libp2p.handle('/echo/1.0.0', ({ stream }) => {
+          pipe(stream, stream)
+            .catch() // sometimes connections are closed before multistream-select finishes which causes an error
+        })
+
+        if (peers.length > 0) {
+          const previousPeerIndex = peers.length - 1
+          const previousPeerId = peers[previousPeerIndex].peerId
+
+          await libp2p.peerStore.addressBook.add(previousPeerId, peers[previousPeerIndex].getMultiaddrs())
+          await libp2p.dial(previousPeerId)
+        }
+
+        peers.push(libp2p)
+      }
 
       return {
-        libp2p
+        peers
       }
     },
     after: async (_, before) => {
-      await before.libp2p.stop()
+      await Promise.all(before.peers.map(async libp2p => { await libp2p.stop() }))
     }
   }
 }
