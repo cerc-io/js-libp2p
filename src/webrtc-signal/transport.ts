@@ -5,6 +5,7 @@ import * as lp from 'it-length-prefixed'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { AbortError } from 'abortable-iterator'
+import delay from 'delay'
 
 import { logger } from '@libp2p/logger'
 import { multiaddr } from '@multiformats/multiaddr'
@@ -28,6 +29,8 @@ import { SignallingMessage, Type } from './signal-message.js'
 import { toMultiaddrConnection } from './socket-to-conn.js'
 import { DialResponseListener } from './utils.js'
 import { CIRCUIT_PROTO_CODE } from '../circuit/constants.js'
+
+const ERR_PUBSUB_NOT_STARTED = 'Pubsub has not started'
 
 const log = logger('libp2p:webrtc-signal')
 
@@ -126,7 +129,21 @@ export class WebRTCSignal implements Transport, Startable {
 
     log('Subscribing peer to the signalling topic')
 
-    pubsub.subscribe(WEBRTC_SIGNAL_TOPIC)
+    let subscribed = false
+    while (!subscribed) {
+      try {
+        pubsub.subscribe(WEBRTC_SIGNAL_TOPIC)
+        subscribed = true
+      } catch (err: any) {
+        if ((err as Error).message.includes(ERR_PUBSUB_NOT_STARTED)) {
+          // Wait before retrying
+          await delay(500)
+        } else {
+          throw err
+        }
+      }
+    }
+
     pubsub.addEventListener('message', (evt) => {
       this._handlePubSubMessage(evt.detail)
     })
