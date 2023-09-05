@@ -52,6 +52,10 @@ async function createGoPeer (options: SpawnOptions): Promise<Daemon> {
     opts.push(`-id=${options.key}`)
   }
 
+  if (options.muxer != null) {
+    opts.push(`-muxer=${options.muxer}`)
+  }
+
   const deferred = pDefer()
   const proc = execa(p2pd(), opts)
 
