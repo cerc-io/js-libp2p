@@ -135,6 +135,7 @@ export class WebRTCSignal implements Transport, Startable {
         pubsub.subscribe(WEBRTC_SIGNAL_TOPIC)
         subscribed = true
       } catch (err: any) {
+        // Pubsub may not be started yet
         if ((err as Error).message.includes(ERR_PUBSUB_NOT_STARTED)) {
           // Wait before retrying
           await delay(500)
