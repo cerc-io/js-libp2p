@@ -52,6 +52,12 @@ async function createGoPeer (options: SpawnOptions): Promise<Daemon> {
     opts.push(`-id=${options.key}`)
   }
 
+  // Use only the required muxer as js-libp2p nodes run into an error causing the mplex muxer tests to fail
+  // with error "failed to negotiate stream multiplexer: protocols not supported: [/yamux/1.0.0]"
+  if (options.muxer != null) {
+    opts.push(`-muxer=${options.muxer}`)
+  }
+
   const deferred = pDefer()
   const proc = execa(p2pd(), opts)
 
